@@ -1,24 +1,29 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import ProductCard from '../components/ProductCard'
 import { useStore } from '../context/StoreContext'
-import tyreData from '../data/tyre_dataset_with_id.json'
+import rawData from '../data/tyre_dataset_with_id.json'
 import './ProductListing.css'
 
-const BRANDS = [...new Set(tyreData.map((p) => {
-  const parts = p.Brand.split(' ')
-  return parts[0]
-}))].sort()
+const tyreData = rawData.data
 
-const RIM_SIZES = [...new Set(tyreData.map((p) => {
-  const match = p.Brand.match(/\bR\s*(\d{2})\b/)
-  return match ? match[1] : null
-}).filter(Boolean))].sort((a, b) => Number(a) - Number(b))
+const BRANDS = [...new Set(tyreData.map((p) => p.Brand))].sort()
+
+const WHEEL_SIZES = [...new Set(
+  tyreData.map((p) => p.wheel_size).filter(Boolean)
+)].sort((a, b) => parseFloat(a) - parseFloat(b))
+
+const WHEEL_WIDTHS = [...new Set(
+  tyreData.map((p) => p.wheel_width).filter(Boolean)
+)].sort((a, b) => parseFloat(a) - parseFloat(b))
+
+const COLOURS = [...new Set(
+  tyreData.map((p) => p.colour).filter(Boolean)
+)].sort()
 
 const TOP_BRANDS = (() => {
   const counts = {}
   tyreData.forEach((p) => {
-    const brand = p.Brand.split(' ')[0]
-    counts[brand] = (counts[brand] || 0) + 1
+    counts[p.Brand] = (counts[p.Brand] || 0) + 1
   })
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
@@ -26,16 +31,29 @@ const TOP_BRANDS = (() => {
     .map(([name]) => name)
 })()
 
+const MAX_PRICE = 1000
 const ITEMS_PER_PAGE = 20
+
+function formatUSD(value) {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 function ProductListing() {
   const [selectedBrands, setSelectedBrands] = useState([])
-  const [priceRange, setPriceRange] = useState([0, 50000])
+  const [priceRange, setPriceRange] = useState([0, MAX_PRICE])
   const [sortBy, setSortBy] = useState('default')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [filterOpen, setFilterOpen] = useState({ brand: true, price: true, vehicle: false })
+  const [filterOpen, setFilterOpen] = useState({
+    brand: true,
+    price: true,
+    wheelSize: true,
+    wheelWidth: false,
+    colour: false,
+  })
   const [selectedSizes, setSelectedSizes] = useState([])
+  const [selectedWidths, setSelectedWidths] = useState([])
+  const [selectedColours, setSelectedColours] = useState([])
 
   const {
     highlightedProductIds,
@@ -45,17 +63,15 @@ function ProductListing() {
   } = useStore()
 
   const highlightedSet = useMemo(
-    () => new Set(highlightedProductIds),
+    () => new Set(highlightedProductIds.map(String)),
     [highlightedProductIds],
   )
 
-  const prevBrandsRef = useRef(selectedBrands)
-  const prevPriceRef = useRef(priceRange)
-
   const syncFiltersToContext = useCallback(
-    (brands, price, label) => {
-      updateFilters({ brands, priceRange: price })
-      notifyFilterChange({ brands, priceRange: price }, label)
+    ({ brands, priceRange: price, sizes, widths, colours }, label) => {
+      const payload = { brands, priceRange: price, sizes, widths, colours }
+      updateFilters(payload)
+      notifyFilterChange(payload, label)
     },
     [updateFilters, notifyFilterChange],
   )
@@ -67,47 +83,49 @@ function ProductListing() {
       const q = searchQuery.toLowerCase()
       result = result.filter(
         (p) =>
-          p.Brand.toLowerCase().includes(q) ||
-          (p['Compatible Vehicles'] || '').toLowerCase().includes(q) ||
-          (p['Product Description'] || '').toLowerCase().includes(q)
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.Brand || '').toLowerCase().includes(q) ||
+          (p['Product Description'] || '').toLowerCase().includes(q) ||
+          (p.wheel_model_name || '').toLowerCase().includes(q)
       )
     }
 
     if (selectedBrands.length > 0) {
       result = result.filter((p) =>
-        selectedBrands.some((b) => p.Brand.toLowerCase().startsWith(b.toLowerCase()))
+        selectedBrands.some((b) => p.Brand === b)
       )
     }
 
     if (selectedSizes.length > 0) {
-      result = result.filter((p) => {
-        const match = p.Brand.match(/\bR\s*(\d{2})\b/)
-        return match && selectedSizes.includes(match[1])
-      })
+      result = result.filter((p) => selectedSizes.includes(p.wheel_size))
+    }
+
+    if (selectedWidths.length > 0) {
+      result = result.filter((p) => selectedWidths.includes(p.wheel_width))
+    }
+
+    if (selectedColours.length > 0) {
+      result = result.filter((p) => selectedColours.includes(p.colour))
     }
 
     result = result.filter((p) => {
-      const price = parseFloat((p.Price || '0').replace(/,/g, ''))
+      const price = Number(p.Price) || 0
       return price >= priceRange[0] && price <= priceRange[1]
     })
 
     if (sortBy === 'price-asc') {
-      result = [...result].sort(
-        (a, b) => parseFloat((a.Price || '0').replace(/,/g, '')) - parseFloat((b.Price || '0').replace(/,/g, ''))
-      )
+      result = [...result].sort((a, b) => (Number(a.Price) || 0) - (Number(b.Price) || 0))
     } else if (sortBy === 'price-desc') {
-      result = [...result].sort(
-        (a, b) => parseFloat((b.Price || '0').replace(/,/g, '')) - parseFloat((a.Price || '0').replace(/,/g, ''))
-      )
+      result = [...result].sort((a, b) => (Number(b.Price) || 0) - (Number(a.Price) || 0))
     } else if (sortBy === 'name-asc') {
-      result = [...result].sort((a, b) => a.Brand.localeCompare(b.Brand))
+      result = [...result].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     }
 
     if (highlightedSet.size > 0 && sortBy === 'default') {
       const highlighted = []
       const rest = []
       for (const p of result) {
-        if (highlightedSet.has(p.id)) {
+        if (highlightedSet.has(String(p.id))) {
           highlighted.push(p)
         } else {
           rest.push(p)
@@ -117,10 +135,21 @@ function ProductListing() {
     }
 
     return result
-  }, [searchQuery, selectedBrands, selectedSizes, priceRange, sortBy, highlightedSet])
+  }, [searchQuery, selectedBrands, selectedSizes, selectedWidths, selectedColours, priceRange, sortBy, highlightedSet])
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
   const paginatedProducts = filteredProducts.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+
+  function buildFilterBag(overrides = {}) {
+    return {
+      brands: selectedBrands,
+      priceRange,
+      sizes: selectedSizes,
+      widths: selectedWidths,
+      colours: selectedColours,
+      ...overrides,
+    }
+  }
 
   function toggleBrand(brand) {
     setSelectedBrands((prev) => {
@@ -132,7 +161,7 @@ function ProductListing() {
     const label = adding
       ? `Filter applied: brand "${brand}"`
       : `Filter removed: brand "${brand}"`
-    syncFiltersToContext(next, priceRange, label)
+    syncFiltersToContext(buildFilterBag({ brands: next }), label)
     setPage(1)
   }
 
@@ -142,8 +171,8 @@ function ProductListing() {
     setPage(1)
     clearTimeout(priceDebounceRef.current)
     priceDebounceRef.current = setTimeout(() => {
-      const label = `Price range set: ₹${newRange[0].toLocaleString()} – ₹${newRange[1].toLocaleString()}`
-      syncFiltersToContext(selectedBrands, newRange, label)
+      const label = `Price range set: ${formatUSD(newRange[0])} – ${formatUSD(newRange[1])}`
+      syncFiltersToContext(buildFilterBag({ priceRange: newRange }), label)
     }, 800)
   }
 
@@ -159,9 +188,29 @@ function ProductListing() {
   }, [highlightedProductIds])
 
   function toggleSize(size) {
-    setSelectedSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
-    )
+    const next = selectedSizes.includes(size) ? selectedSizes.filter((s) => s !== size) : [...selectedSizes, size]
+    setSelectedSizes(next)
+    const adding = !selectedSizes.includes(size)
+    const label = adding ? `Filter applied: wheel size ${size}` : `Filter removed: wheel size ${size}`
+    syncFiltersToContext(buildFilterBag({ sizes: next }), label)
+    setPage(1)
+  }
+
+  function toggleWidth(width) {
+    const next = selectedWidths.includes(width) ? selectedWidths.filter((w) => w !== width) : [...selectedWidths, width]
+    setSelectedWidths(next)
+    const adding = !selectedWidths.includes(width)
+    const label = adding ? `Filter applied: wheel width ${width}` : `Filter removed: wheel width ${width}`
+    syncFiltersToContext(buildFilterBag({ widths: next }), label)
+    setPage(1)
+  }
+
+  function toggleColour(colour) {
+    const next = selectedColours.includes(colour) ? selectedColours.filter((c) => c !== colour) : [...selectedColours, colour]
+    setSelectedColours(next)
+    const adding = !selectedColours.includes(colour)
+    const label = adding ? `Filter applied: colour "${colour}"` : `Filter removed: colour "${colour}"`
+    syncFiltersToContext(buildFilterBag({ colours: next }), label)
     setPage(1)
   }
 
@@ -169,25 +218,32 @@ function ProductListing() {
     const next = selectedBrands.includes(brand) ? selectedBrands.filter((b) => b !== brand) : [brand]
     setSelectedBrands(next)
     setPage(1)
-    syncFiltersToContext(next, priceRange, next.length ? `Filter applied: brand "${brand}"` : 'Brand filter cleared')
+    syncFiltersToContext(buildFilterBag({ brands: next }), next.length ? `Filter applied: brand "${brand}"` : 'Brand filter cleared')
   }
 
   function clearAllFilters() {
     setSelectedBrands([])
     setSelectedSizes([])
+    setSelectedWidths([])
+    setSelectedColours([])
     setSearchQuery('')
-    setPriceRange([0, 50000])
+    setPriceRange([0, MAX_PRICE])
     setPage(1)
-    syncFiltersToContext([], [0, 50000], 'All filters cleared')
+    syncFiltersToContext({ brands: [], priceRange: [0, MAX_PRICE], sizes: [], widths: [], colours: [] }, 'All filters cleared')
   }
 
-  const hasActiveFilters = selectedBrands.length > 0 || selectedSizes.length > 0 || searchQuery || priceRange[0] > 0 || priceRange[1] < 50000
+  const hasActiveFilters =
+    selectedBrands.length > 0 ||
+    selectedSizes.length > 0 ||
+    selectedWidths.length > 0 ||
+    selectedColours.length > 0 ||
+    searchQuery ||
+    priceRange[0] > 0 ||
+    priceRange[1] < MAX_PRICE
 
   function toggleFilterSection(key) {
     setFilterOpen((prev) => ({ ...prev, [key]: !prev[key] }))
   }
-
-  const displayedBrands = BRANDS.slice(0, 25)
 
   return (
     <div className="listing-page">
@@ -196,11 +252,11 @@ function ProductListing() {
           <div className="listing-hero__breadcrumb">
             <a href="#">Home</a>
             <span className="listing-hero__sep">/</span>
-            <a href="#">Tyres &amp; Accessories</a>
+            <a href="#">Wheels &amp; Accessories</a>
             <span className="listing-hero__sep">/</span>
-            <span>Tyres</span>
+            <span>Alloy Wheels</span>
           </div>
-          <h1 className="listing-hero__title">Tyres</h1>
+          <h1 className="listing-hero__title">Alloy Wheels</h1>
 
           <div className="listing-hero__brands">
             {TOP_BRANDS.map((brand) => (
@@ -217,15 +273,15 @@ function ProductListing() {
           <div className="listing-hero__divider" />
 
           <div className="listing-hero__sizes">
-            <span className="listing-hero__sizes-label">CLICK A TYRE SIZE BUTTON BELOW TO SEARCH:</span>
+            <span className="listing-hero__sizes-label">SELECT A WHEEL SIZE:</span>
             <div className="listing-hero__size-buttons">
-              {RIM_SIZES.map((size) => (
+              {WHEEL_SIZES.map((size) => (
                 <button
                   key={size}
                   className={`listing-hero__size-btn ${selectedSizes.includes(size) ? 'listing-hero__size-btn--active' : ''}`}
                   onClick={() => toggleSize(size)}
                 >
-                  {size}&quot;
+                  {size}
                 </button>
               ))}
             </div>
@@ -239,7 +295,7 @@ function ProductListing() {
 
           <div className="listing-hero__info-bar">
             <span className="listing-hero__info-text">
-              Showing {filteredProducts.length} tyres — use filters on the left to refine results
+              Showing {filteredProducts.length} wheel{filteredProducts.length !== 1 ? 's' : ''} — use filters on the left to refine results
             </span>
             <button className="listing-hero__clear-link" onClick={clearAllFilters}>
               Clear all filters
@@ -278,6 +334,7 @@ function ProductListing() {
             </div>
             <div className="sidebar__header-accent" />
 
+            {/* Brand filter */}
             <div className="sidebar__section">
               <button
                 className="sidebar__section-toggle"
@@ -293,14 +350,14 @@ function ProductListing() {
                   <div className="sidebar__search">
                     <input
                       type="text"
-                      placeholder="Search brands..."
+                      placeholder="Search products..."
                       value={searchQuery}
                       onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
                       className="sidebar__search-input"
                     />
                   </div>
                   <ul className="sidebar__checklist">
-                    {displayedBrands.map((brand) => (
+                    {BRANDS.map((brand) => (
                       <li key={brand} className="sidebar__check-item">
                         <label className="sidebar__check-label">
                           <input
@@ -318,38 +375,102 @@ function ProductListing() {
               )}
             </div>
 
+            {/* Wheel Size filter */}
             <div className="sidebar__section">
               <button
                 className="sidebar__section-toggle"
-                onClick={() => toggleFilterSection('price')}
+                onClick={() => toggleFilterSection('wheelSize')}
               >
-                <span>PRICE RANGE</span>
-                <span className={`sidebar__chevron ${filterOpen.price ? 'sidebar__chevron--open' : ''}`}>
+                <span>WHEEL SIZE</span>
+                <span className={`sidebar__chevron ${filterOpen.wheelSize ? 'sidebar__chevron--open' : ''}`}>
                   ‹
                 </span>
               </button>
-              {filterOpen.price && (
+              {filterOpen.wheelSize && (
                 <div className="sidebar__section-content">
-                  <div className="sidebar__price-inputs">
-                    <input
-                      type="number"
-                      placeholder="Min"
-                      value={priceRange[0] || ''}
-                      onChange={(e) => handlePriceChange([Number(e.target.value) || 0, priceRange[1]])}
-                      className="sidebar__price-input"
-                    />
-                    <span className="sidebar__price-sep">–</span>
-                    <input
-                      type="number"
-                      placeholder="Max"
-                      value={priceRange[1] || ''}
-                      onChange={(e) => handlePriceChange([priceRange[0], Number(e.target.value) || 50000])}
-                      className="sidebar__price-input"
-                    />
-                  </div>
+                  <ul className="sidebar__checklist">
+                    {WHEEL_SIZES.map((size) => (
+                      <li key={size} className="sidebar__check-item">
+                        <label className="sidebar__check-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedSizes.includes(size)}
+                            onChange={() => toggleSize(size)}
+                            className="sidebar__checkbox"
+                          />
+                          <span className="sidebar__check-name">{size}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
+
+            {/* Wheel Width filter */}
+            <div className="sidebar__section">
+              <button
+                className="sidebar__section-toggle"
+                onClick={() => toggleFilterSection('wheelWidth')}
+              >
+                <span>WHEEL WIDTH</span>
+                <span className={`sidebar__chevron ${filterOpen.wheelWidth ? 'sidebar__chevron--open' : ''}`}>
+                  ‹
+                </span>
+              </button>
+              {filterOpen.wheelWidth && (
+                <div className="sidebar__section-content">
+                  <ul className="sidebar__checklist">
+                    {WHEEL_WIDTHS.map((width) => (
+                      <li key={width} className="sidebar__check-item">
+                        <label className="sidebar__check-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedWidths.includes(width)}
+                            onChange={() => toggleWidth(width)}
+                            className="sidebar__checkbox"
+                          />
+                          <span className="sidebar__check-name">{width}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Colour filter */}
+            <div className="sidebar__section">
+              <button
+                className="sidebar__section-toggle"
+                onClick={() => toggleFilterSection('colour')}
+              >
+                <span>COLOUR</span>
+                <span className={`sidebar__chevron ${filterOpen.colour ? 'sidebar__chevron--open' : ''}`}>
+                  ‹
+                </span>
+              </button>
+              {filterOpen.colour && (
+                <div className="sidebar__section-content">
+                  <ul className="sidebar__checklist">
+                    {COLOURS.map((colour) => (
+                      <li key={colour} className="sidebar__check-item">
+                        <label className="sidebar__check-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedColours.includes(colour)}
+                            onChange={() => toggleColour(colour)}
+                            className="sidebar__checkbox"
+                          />
+                          <span className="sidebar__check-name">{colour}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
           </aside>
 
           <main className="listing__main">
@@ -376,7 +497,7 @@ function ProductListing() {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  highlighted={highlightedSet.has(product.id)}
+                  highlighted={highlightedSet.has(String(product.id))}
                 />
               ))}
             </div>
@@ -384,7 +505,7 @@ function ProductListing() {
             {filteredProducts.length === 0 && (
               <div className="listing__empty">
                 <p>No products match your filters.</p>
-                <button onClick={() => { setSelectedBrands([]); setSearchQuery(''); setPriceRange([0, 50000]) }}>
+                <button onClick={clearAllFilters}>
                   Clear filters
                 </button>
               </div>

@@ -111,6 +111,23 @@
   overflow: hidden;
 }
 
+.product-card__meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.product-card__meta-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: #4a5568;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 3px;
+  line-height: 1.4;
+}
+
 .product-card__rating {
   margin-top: 8px;
 }

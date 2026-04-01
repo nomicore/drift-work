@@ -21,14 +21,19 @@ META_PATH = DATA_DIR / "faiss_meta.json"
 _LEGACY_INDEX_PATH = DATA_DIR / "faiss_index.bin"
 
 ATTRIBUTE_FIELDS: dict[str, Callable[[TyreProduct], str]] = {
-    "brand_name": lambda p: p.brand,
+    "brand_name": lambda p: f"{p.name} {p.brand} {p.wheel_model_name}".strip(),
     "description": lambda p: p.product_description,
     "features": lambda p: ". ".join(p.features_benefits[:5]),
     "vehicles": lambda p: f"Compatible with {', '.join(p.compatible_vehicles)}",
     "price": lambda p: (
-        f"₹{p.price:,.0f} "
-        f"{'budget' if p.price < 5000 else 'mid-range' if p.price < 12000 else 'premium'} "
+        f"${p.price:,.2f} "
+        f"{'budget' if p.price < 150 else 'mid-range' if p.price < 300 else 'premium'} "
         f"price range"
+    ),
+    "wheel_specs": lambda p: (
+        f"Size: {p.wheel_size} Width: {p.wheel_width} "
+        f"Colour: {p.colour} Style: {p.wheel_style} "
+        f"PCD: {p.wheel_stud_pattern_pcd}"
     ),
 }
 
@@ -45,6 +50,7 @@ class FaissTyreStore:
         self._embeddings = OpenAIEmbeddings(
             model=settings.openai_embedding_model,
             openai_api_key=settings.openai_api_key,
+            dimensions=settings.embedding_dimension,
         )
         self._indices: dict[str, faiss.IndexFlatIP] = {}
         self._products: list[TyreProduct] = []
@@ -68,6 +74,8 @@ class FaissTyreStore:
                 raw = json.load(f)
             if "attribute_texts" not in raw:
                 return False
+            if raw.get("embedding_dimension") != settings.embedding_dimension:
+                return False
         except (json.JSONDecodeError, KeyError):
             return False
         return all((INDEX_DIR / f"{attr}.bin").exists() for attr in ATTRIBUTE_FIELDS)
@@ -87,8 +95,13 @@ class FaissTyreStore:
 
     def _build_indices(self) -> None:
         with open(SAMPLE_DATA_PATH) as f:
-            raw_products = json.load(f)
+            raw_data = json.load(f)
 
+        raw_products = (
+            raw_data["data"]
+            if isinstance(raw_data, dict) and "data" in raw_data
+            else raw_data
+        )
         self._products = [TyreProduct.from_raw(p) for p in raw_products]
         self._attribute_texts = {
             attr: [text_fn(p) for p in self._products]
@@ -112,6 +125,7 @@ class FaissTyreStore:
                 {
                     "products": [p.model_dump() for p in self._products],
                     "attribute_texts": self._attribute_texts,
+                    "embedding_dimension": settings.embedding_dimension,
                 },
                 f,
             )
@@ -216,6 +230,9 @@ class FaissTyreStore:
         compatible_vehicle: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
+        wheel_size: str | None = None,
+        wheel_width: str | None = None,
+        colour: str | None = None,
     ) -> list[dict]:
         """Filter products by exact attribute values (AND logic).
 
@@ -233,6 +250,18 @@ class FaissTyreStore:
             if min_price is not None and product.price < min_price:
                 return False
             if max_price is not None and product.price > max_price:
+                return False
+            if (
+                wheel_size
+                and str(wheel_size).lower() not in str(product.wheel_size).lower()
+            ):
+                return False
+            if (
+                wheel_width
+                and str(wheel_width).lower() not in str(product.wheel_width).lower()
+            ):
+                return False
+            if colour and colour.lower() not in product.colour.lower():
                 return False
             return True
 

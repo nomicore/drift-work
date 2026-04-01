@@ -1,17 +1,19 @@
 import { Link } from 'react-router-dom'
 import StarRating from './StarRating'
+import { proxyImageUrl } from '../utils/imageProxy'
 import './ProductCard.css'
 
-function ProductCard({ product, highlighted = false }) {
-  const brandLine = product.Brand.split(' ').slice(0, 2).join(' ')
-  const titleLine = product.Brand
+function formatUSD(value) {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
-  const hash = product.id.charCodeAt(5) + product.id.charCodeAt(6)
+function ProductCard({ product, highlighted = false }) {
+  const brandLine = product.Brand
+  const titleLine = product.name || product.Brand
+
+  const hash = Math.abs(product.id * 2654435761 | 0)
   const reviewCount = (hash % 8) + 1
   const rating = (3.5 + (hash % 15) / 10).toFixed(1)
-
-  const sizeMatch = product.Brand.match(/(\d+x\d+(?:\.\d+)?)/i)
-  const sizeSpec = sizeMatch ? sizeMatch[1] : null
 
   return (
     <Link
@@ -20,11 +22,14 @@ function ProductCard({ product, highlighted = false }) {
     >
       <div className="product-card__image-wrap">
         <img
-          src={product.Image}
-          alt={product.Brand}
+          src={proxyImageUrl(product.Image)}
+          alt={titleLine}
           className="product-card__image"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
           onError={(e) => {
-            e.target.src = `https://placehold.co/220x220/f0f0f0/999?text=${encodeURIComponent(brandLine)}`
+            e.target.onerror = null
+            e.target.src = `https://placehold.co/220x220/1a1a2e/e67e22?text=${encodeURIComponent(product.wheel_size || brandLine)}&font=raleway`
           }}
         />
         <div className="product-card__badges">
@@ -39,14 +44,18 @@ function ProductCard({ product, highlighted = false }) {
       <div className="product-card__info">
         <div className="product-card__brand-row">
           <span className="product-card__brand">{brandLine}</span>
-          {sizeSpec && <span className="product-card__spec">{sizeSpec}</span>}
+          {product.wheel_size && <span className="product-card__spec">{product.wheel_size}</span>}
         </div>
         <h3 className="product-card__title">{titleLine}</h3>
+        <div className="product-card__meta">
+          {product.colour && <span className="product-card__meta-tag">{product.colour}</span>}
+          {product.wheel_width && <span className="product-card__meta-tag">{product.wheel_width}</span>}
+        </div>
         <div className="product-card__rating">
           <StarRating rating={parseFloat(rating)} reviewCount={reviewCount} />
         </div>
         <div className="product-card__bottom">
-          <p className="product-card__price">₹{product.Price}</p>
+          <p className="product-card__price">{formatUSD(product.Price)}</p>
           <button
             className="product-card__cart-btn"
             onClick={(e) => { e.preventDefault(); e.stopPropagation() }}

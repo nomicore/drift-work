@@ -8,17 +8,27 @@ export async function sendMessage(sessionId, message, filters = null, productCon
       brands: filters.brands || [],
       price_min: filters.priceRange?.[0] ?? null,
       price_max: filters.priceRange?.[1] ?? null,
+      sizes: filters.sizes || [],
+      widths: filters.widths || [],
+      colours: filters.colours || [],
     }
   }
 
   if (productContext) {
     payload.product_context = {
-      id: productContext.id,
-      brand: productContext.brand,
-      price: productContext.price,
-      compatible_vehicles: productContext.compatible_vehicles,
-      product_description: productContext.product_description,
-      features_benefits: productContext.features_benefits,
+      id: String(productContext.id),
+      brand: String(productContext.brand || ''),
+      name: String(productContext.name || ''),
+      price: String(productContext.price ?? ''),
+      compatible_vehicles: String(productContext.compatible_vehicles || ''),
+      product_description: String(productContext.product_description || ''),
+      features_benefits: String(productContext.features_benefits || ''),
+      wheel_size: String(productContext.wheel_size || ''),
+      wheel_width: String(productContext.wheel_width || ''),
+      colour: String(productContext.colour || ''),
+      wheel_style: String(productContext.wheel_style || ''),
+      wheel_model_name: String(productContext.wheel_model_name || ''),
+      wheel_stud_pattern_pcd: String(productContext.wheel_stud_pattern_pcd || ''),
     }
   }
 

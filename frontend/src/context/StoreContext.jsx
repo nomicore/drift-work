@@ -2,12 +2,17 @@ import { createContext, useContext, useState, useCallback, useRef } from 'react'
 
 const StoreContext = createContext(null)
 
+const MAX_PRICE = 1000
+
 export function StoreProvider({ children }) {
   const [highlightedProductIds, setHighlightedProductIds] = useState([])
   const [currentProduct, setCurrentProduct] = useState(null)
   const [activeFilters, setActiveFilters] = useState({
     brands: [],
-    priceRange: [0, 50000],
+    priceRange: [0, MAX_PRICE],
+    sizes: [],
+    widths: [],
+    colours: [],
   })
   const [filterVersion, setFilterVersion] = useState(0)
   const filterListenersRef = useRef([])

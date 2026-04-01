@@ -71,15 +71,35 @@ async def chat(request: ChatRequest) -> ChatResponse:
             parts.append(f"min price: ${request.filters.price_min:,.2f}")
         if request.filters.price_max is not None:
             parts.append(f"max price: ${request.filters.price_max:,.2f}")
+        if request.filters.sizes:
+            parts.append(f"wheel sizes: {', '.join(request.filters.sizes)}")
+        if request.filters.widths:
+            parts.append(f"wheel widths: {', '.join(request.filters.widths)}")
+        if request.filters.colours:
+            parts.append(f"colours: {', '.join(request.filters.colours)}")
         if parts:
             filter_context = f" [Active filters — {'; '.join(parts)}]"
 
     product_context = ""
     if request.product_context:
         pc = request.product_context
+        specs = "; ".join(
+            filter(
+                None,
+                [
+                    f"wheel size: {pc.wheel_size}" if pc.wheel_size else "",
+                    f"wheel width: {pc.wheel_width}" if pc.wheel_width else "",
+                    f"colour: {pc.colour}" if pc.colour else "",
+                    f"style: {pc.wheel_style}" if pc.wheel_style else "",
+                    f"PCD: {pc.wheel_stud_pattern_pcd}" if pc.wheel_stud_pattern_pcd else "",
+                    f"model: {pc.wheel_model_name}" if pc.wheel_model_name else "",
+                ],
+            )
+        )
         product_context = (
             f" [Currently viewing product — "
-            f"brand: {pc.brand}; price: ${pc.price}; "
+            f"name: {pc.name}; brand: {pc.brand}; price: ${pc.price}; "
+            f"{specs}; "
             f"vehicles: {pc.compatible_vehicles}; "
             f"description: {pc.product_description[:200]}; "
             f"features: {pc.features_benefits[:200]}]"
@@ -187,7 +207,9 @@ async def health() -> dict[str, str]:
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 if STATIC_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+    app.mount(
+        "/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets"
+    )
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str) -> FileResponse:

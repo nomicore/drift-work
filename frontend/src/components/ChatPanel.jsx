@@ -2,18 +2,27 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { sendMessage, resetSession } from '../services/chatApi'
 import { useStore } from '../context/StoreContext'
-import tyreData from '../data/tyre_dataset_with_id.json'
+import { proxyImageUrl } from '../utils/imageProxy'
+import rawData from '../data/tyre_dataset_with_id.json'
 import StarRating from './StarRating'
 import './ChatPanel.css'
+
+const tyreData = rawData.data
 
 function generateSessionId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+function formatUSD(value) {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+const MAX_PRICE = 1000
+
 const SUGGESTIONS = [
-  'I need durable tyres for my Maruti Swift under \u20b95000',
-  'Best all-season tyres for a Honda City around \u20b98000',
-  'Budget-friendly tyres for Hyundai i20 with good wet grip',
+  'I need 18" black alloy wheels under $300',
+  'Best 20" wheels for off-road use',
+  'Show me lightweight 17" wheels in silver',
 ]
 
 function badgeFor(data) {
@@ -26,7 +35,7 @@ function badgeFor(data) {
 const BADGE_LABELS = {
   chat: 'Chatting',
   collect: 'Gathering Details',
-  answer: 'Tyre Recommendations',
+  answer: 'Wheel Recommendations',
 }
 
 export default function ChatPanel() {
@@ -89,7 +98,10 @@ export default function ChatPanel() {
         const hasFilters =
           filters.brands.length > 0 ||
           filters.priceRange[0] > 0 ||
-          filters.priceRange[1] < 50000
+          filters.priceRange[1] < MAX_PRICE ||
+          (filters.sizes?.length ?? 0) > 0 ||
+          (filters.widths?.length ?? 0) > 0 ||
+          (filters.colours?.length ?? 0) > 0
         const data = await sendMessage(
           sessionId,
           trimmed,
@@ -133,8 +145,8 @@ export default function ChatPanel() {
 
   const recsProducts = useMemo(() => {
     if (!recsModalIds) return []
-    const idSet = new Set(recsModalIds)
-    return tyreData.filter((p) => idSet.has(p.id))
+    const idSet = new Set(recsModalIds.map(String))
+    return tyreData.filter((p) => idSet.has(String(p.id)))
   }, [recsModalIds])
 
   const handleReset = async () => {
@@ -150,7 +162,6 @@ export default function ChatPanel() {
 
   return (
     <>
-      {/* Floating action button */}
       <button
         className={`chat-toggle ${open ? 'chat-toggle--open' : ''}`}
         onClick={() => setOpen((v) => !v)}
@@ -168,15 +179,12 @@ export default function ChatPanel() {
         )}
       </button>
 
-      {/* Backdrop */}
       <div
         className={`chat-backdrop ${open ? 'chat-backdrop--visible' : ''}`}
         onClick={() => setOpen(false)}
       />
 
-      {/* Side panel */}
       <aside className={`chat-panel ${open ? 'chat-panel--open' : ''}`}>
-        {/* Header */}
         <div className="chat-panel__header">
           <div className="chat-panel__header-left">
             <div className="chat-panel__header-icon">
@@ -185,8 +193,8 @@ export default function ChatPanel() {
               </svg>
             </div>
             <div>
-              <div className="chat-panel__title">Tyre Finder AI</div>
-              <div className="chat-panel__subtitle">Ask about car tyres</div>
+              <div className="chat-panel__title">Wheel Finder AI</div>
+              <div className="chat-panel__subtitle">Ask about alloy wheels</div>
             </div>
           </div>
           <div className="chat-panel__header-actions">
@@ -213,7 +221,6 @@ export default function ChatPanel() {
           </div>
         </div>
 
-        {/* Messages */}
         <div className="chat-panel__messages">
           {messages.length === 0 && !loading && (
             <div className="chat-panel__welcome">
@@ -225,7 +232,7 @@ export default function ChatPanel() {
               </div>
               <h3>Hi there!</h3>
               <p>
-                I can help you find the perfect car tyres based on your vehicle,
+                I can help you find the perfect alloy wheels based on your vehicle,
                 preferences, and budget. Try one of these:
               </p>
               <div className="chat-panel__suggestions">
@@ -294,7 +301,7 @@ export default function ChatPanel() {
                         <rect x="3" y="14" width="7" height="7" />
                         <rect x="14" y="14" width="7" height="7" />
                       </svg>
-                      View {msg.recommendedIds.length} recommended tyres
+                      View {msg.recommendedIds.length} recommended wheels
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="9 18 15 12 9 6" />
                       </svg>
@@ -323,14 +330,13 @@ export default function ChatPanel() {
           <div ref={messagesEnd} />
         </div>
 
-        {/* Input */}
         <div className="chat-panel__input-area">
           <div className="chat-panel__input-row">
             <textarea
               ref={inputRef}
               className="chat-panel__input"
               rows={1}
-              placeholder="Ask about car tyres..."
+              placeholder="Ask about alloy wheels..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -351,7 +357,6 @@ export default function ChatPanel() {
         </div>
       </aside>
 
-      {/* Recommendations popup modal */}
       {recsModalIds && (
         <div className="recs-modal-overlay" onClick={() => setRecsModalIds(null)}>
           <div className="recs-modal" onClick={(e) => e.stopPropagation()}>
@@ -360,7 +365,7 @@ export default function ChatPanel() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
-                <span>AI Recommended Tyres ({recsProducts.length})</span>
+                <span>AI Recommended Wheels ({recsProducts.length})</span>
               </div>
               <button
                 className="recs-modal__close"
@@ -380,8 +385,8 @@ export default function ChatPanel() {
               ) : (
                 <div className="recs-modal__grid">
                   {recsProducts.map((product) => {
-                    const brandLine = product.Brand.split(' ').slice(0, 2).join(' ')
-                    const hash = product.id.charCodeAt(5) + product.id.charCodeAt(6)
+                    const brandLine = product.Brand
+                    const hash = Math.abs(product.id * 2654435761 | 0)
                     const reviewCount = (hash % 8) + 1
                     const rating = (3.5 + (hash % 15) / 10).toFixed(1)
 
@@ -394,25 +399,28 @@ export default function ChatPanel() {
                       >
                         <div className="recs-card__image-wrap">
                           <img
-                            src={product.Image}
-                            alt={product.Brand}
+                            src={proxyImageUrl(product.Image)}
+                            alt={product.name || product.Brand}
                             className="recs-card__image"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
                             onError={(e) => {
-                              e.target.src = `https://placehold.co/180x180/f0f0f0/999?text=${encodeURIComponent(brandLine)}`
+                              e.target.onerror = null
+                              e.target.src = `https://placehold.co/180x180/1a1a2e/e67e22?text=${encodeURIComponent(product.wheel_size || brandLine)}&font=raleway`
                             }}
                           />
                           <span className="recs-card__ai-badge">AI Pick</span>
                         </div>
                         <div className="recs-card__info">
                           <span className="recs-card__brand">{brandLine}</span>
-                          <h4 className="recs-card__title">{product.Brand}</h4>
-                          {product['Compatible Vehicles'] && (
+                          <h4 className="recs-card__title">{product.name || product.Brand}</h4>
+                          {product.wheel_size && (
                             <p className="recs-card__compat">
-                              Fits: {product['Compatible Vehicles'].split(',').slice(0, 2).join(', ')}
+                              {product.wheel_size} · {product.colour || ''}
                             </p>
                           )}
                           <div className="recs-card__footer">
-                            <span className="recs-card__price">₹{product.Price}</span>
+                            <span className="recs-card__price">{formatUSD(product.Price)}</span>
                             <StarRating rating={parseFloat(rating)} reviewCount={reviewCount} />
                           </div>
                         </div>

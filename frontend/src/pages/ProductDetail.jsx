@@ -2,12 +2,30 @@ import { useParams, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useStore } from '../context/StoreContext'
 import StarRating from '../components/StarRating'
-import tyreData from '../data/tyre_dataset_with_id.json'
+import { proxyImageUrl } from '../utils/imageProxy'
+import rawData from '../data/tyre_dataset_with_id.json'
 import './ProductDetail.css'
+
+const tyreData = rawData.data
+
+function stripHtml(html) {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html')
+  return doc.body.textContent || ''
+}
+
+function sanitizeHtml(html) {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html')
+  doc.querySelectorAll('script, iframe, style, link').forEach((el) => el.remove())
+  return doc.body.innerHTML
+}
+
+function formatUSD(value) {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 function ProductDetail() {
   const { id } = useParams()
-  const product = tyreData.find((p) => p.id === id)
+  const product = tyreData.find((p) => String(p.id) === id)
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(4)
   const [activeTab, setActiveTab] = useState('description')
@@ -18,10 +36,17 @@ function ProductDetail() {
       setCurrentProduct({
         id: product.id,
         brand: product.Brand || '',
-        price: product.Price || '',
-        compatible_vehicles: product['Compatible Vehicles'] || '',
+        name: product.name || '',
+        price: product.Price || 0,
+        compatible_vehicles: (product['Compatible Vehicles'] || ''),
         product_description: product['Product Description'] || '',
         features_benefits: product['Features & Benefits'] || '',
+        wheel_size: product.wheel_size || '',
+        wheel_width: product.wheel_width || '',
+        colour: product.colour || '',
+        wheel_style: product.wheel_style || '',
+        wheel_model_name: product.wheel_model_name || '',
+        wheel_stud_pattern_pcd: product.wheel_stud_pattern_pcd || '',
       })
     }
     return () => setCurrentProduct(null)
@@ -36,25 +61,28 @@ function ProductDetail() {
     )
   }
 
-  const brandParts = product.Brand.split(' ')
-  const brandName = brandParts.slice(0, 2).join(' ')
-  const price = product.Price ? product.Price.replace(/,/g, '') : '0'
-  const numericPrice = parseFloat(price)
-  const totalPrice = (numericPrice * quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const brandName = product.Brand
+  const numericPrice = Number(product.Price) || 0
+  const totalPrice = formatUSD(numericPrice * quantity)
 
   const features = product['Features & Benefits']
     ? product['Features & Benefits'].split('.,').map((f) => f.trim().replace(/\.$/, ''))
     : []
 
-  const compatibleVehicles = product['Compatible Vehicles']
-    ? product['Compatible Vehicles'].split(',').map((v) => v.trim())
-    : []
-
-  const hash = id.charCodeAt(5) + id.charCodeAt(6)
+  const hash = Math.abs(product.id * 2654435761 | 0)
   const reviewCount = 2 + (hash % 5)
   const rating = 4.5 + (hash % 3) * 0.2
 
-  const images = [product.Image, product.Image, product.Image, product.Image]
+  const images = [product.Image, product.Image, product.Image, product.Image].map(proxyImageUrl)
+
+  const specs = [
+    product.wheel_size && { label: 'Wheel Size', value: product.wheel_size },
+    product.wheel_width && { label: 'Width', value: product.wheel_width },
+    product.colour && { label: 'Colour', value: product.colour },
+    product.wheel_style && { label: 'Style', value: product.wheel_style },
+    product.wheel_stud_pattern_pcd && { label: 'PCD', value: product.wheel_stud_pattern_pcd },
+    product.wheel_model_name && { label: 'Model', value: product.wheel_model_name },
+  ].filter(Boolean)
 
   return (
     <>
@@ -63,7 +91,7 @@ function ProductDetail() {
           <div className="detail__breadcrumb">
             <Link to="/">Home</Link>
             <span className="detail__sep">/</span>
-            <Link to="/">Tyres</Link>
+            <Link to="/">Alloy Wheels</Link>
             <span className="detail__sep">/</span>
             <span>{brandName}</span>
           </div>
@@ -80,8 +108,11 @@ function ProductDetail() {
                     <img
                       src={img}
                       alt={`View ${i + 1}`}
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
                       onError={(e) => {
-                        e.target.src = `https://placehold.co/80x80/f0f0f0/999?text=${i + 1}`
+                        e.target.onerror = null
+                        e.target.src = `https://placehold.co/80x80/1a1a2e/e67e22?text=${i + 1}&font=raleway`
                       }}
                     />
                   </button>
@@ -90,9 +121,12 @@ function ProductDetail() {
               <div className="detail__main-image">
                 <img
                   src={images[selectedImage]}
-                  alt={product.Brand}
+                  alt={product.name || product.Brand}
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
                   onError={(e) => {
-                    e.target.src = `https://placehold.co/700x700/f0f0f0/999?text=${encodeURIComponent(brandName)}`
+                    e.target.onerror = null
+                    e.target.src = `https://placehold.co/700x700/1a1a2e/e67e22?text=${encodeURIComponent(product.wheel_size || brandName)}&font=raleway`
                   }}
                 />
               </div>
@@ -101,26 +135,25 @@ function ProductDetail() {
             <div className="detail__info">
               <div className="detail__brand-logo">{brandName}</div>
 
-              <h1 className="detail__title">{product.Brand}</h1>
+              <h1 className="detail__title">{product.name || product.Brand}</h1>
 
               <StarRating rating={rating} reviewCount={reviewCount} />
 
               <ul className="detail__highlights">
-                <li>Wide range of vehicle compatibility</li>
-                <li>Multiple size options available</li>
-                {features.length > 0 && <li>{features[0]}</li>}
-                {compatibleVehicles.length > 0 && (
-                  <li>Fits: {compatibleVehicles.slice(0, 3).join(', ')}</li>
-                )}
+                {product.wheel_size && <li>Diameter: {product.wheel_size}</li>}
+                {product.wheel_width && <li>Width: {product.wheel_width}</li>}
+                {product.colour && <li>Colour: {product.colour}</li>}
+                {product.wheel_style && <li>Style: {product.wheel_style}</li>}
+                {features.length > 0 && <li>{stripHtml(features[0])}</li>}
               </ul>
 
               <div className="detail__price-section">
-                <span className="detail__price">₹{product.Price}</span>
-                <span className="detail__part-no">SKU: {product.id}</span>
+                <span className="detail__price">{formatUSD(product.Price)}</span>
+                <span className="detail__part-no">SKU: {product.sku || product.id}</span>
               </div>
 
               <p className="detail__price-total">
-                <strong>Price for {quantity} tyres: ₹{totalPrice}</strong>
+                <strong>Price for {quantity} wheels: {totalPrice}</strong>
               </p>
 
               <div className="detail__stock">
@@ -128,14 +161,18 @@ function ProductDetail() {
                 Available - Ships within 2 working days
               </div>
 
-              <div className="detail__options">
-                <h3 className="detail__options-title">Compatible Vehicles</h3>
-                <div className="detail__vehicle-tags">
-                  {compatibleVehicles.slice(0, 6).map((vehicle) => (
-                    <span key={vehicle} className="detail__vehicle-tag">{vehicle}</span>
-                  ))}
+              {specs.length > 0 && (
+                <div className="detail__options">
+                  <h3 className="detail__options-title">Specifications</h3>
+                  <div className="detail__vehicle-tags">
+                    {specs.map((spec) => (
+                      <span key={spec.label} className="detail__vehicle-tag">
+                        {spec.label}: {spec.value}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="detail__actions">
                 <div className="detail__qty">
@@ -196,17 +233,19 @@ function ProductDetail() {
             {activeTab === 'description' && (
               <div className="detail__desc-card">
                 {product['Product Description'] ? (
-                  <p className="detail__desc-text">{product['Product Description']}</p>
+                  <div className="detail__desc-text" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product['Product Description']) }} />
                 ) : (
                   <p className="detail__desc-text detail__desc-text--empty">No description available for this product.</p>
                 )}
 
-                {compatibleVehicles.length > 0 && (
+                {specs.length > 0 && (
                   <>
-                    <h3 className="detail__desc-heading">Compatible Vehicles:</h3>
+                    <h3 className="detail__desc-heading">Specifications:</h3>
                     <div className="detail__compat-grid">
-                      {compatibleVehicles.map((vehicle) => (
-                        <span key={vehicle} className="detail__compat-item">{vehicle}</span>
+                      {specs.map((spec) => (
+                        <span key={spec.label} className="detail__compat-item">
+                          {spec.label}: {spec.value}
+                        </span>
                       ))}
                     </div>
                   </>
@@ -216,15 +255,8 @@ function ProductDetail() {
 
             {activeTab === 'features' && (
               <div className="detail__desc-card">
-                {features.length > 0 ? (
-                  <>
-                    <h3 className="detail__desc-heading">Key Features:</h3>
-                    <ul className="detail__features-list">
-                      {features.filter(Boolean).map((feature, i) => (
-                        <li key={i}>{feature}</li>
-                      ))}
-                    </ul>
-                  </>
+                {product['Features & Benefits'] ? (
+                  <div className="detail__desc-text" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product['Features & Benefits']) }} />
                 ) : (
                   <p className="detail__desc-text detail__desc-text--empty">No features information available.</p>
                 )}
@@ -247,14 +279,14 @@ function ProductDetail() {
                         </span>
                       </div>
                       <p className="detail__review-title">
-                        {['Great tyre for daily use', 'Excellent grip and comfort', 'Good value for money', 'Very satisfied with purchase', 'Highly recommended'][i % 5]}
+                        {['Great wheel for the price', 'Excellent finish and fitment', 'Good value for money', 'Very satisfied with purchase', 'Highly recommended'][i % 5]}
                       </p>
                       <p className="detail__review-body">
-                        {['Fitted these to my car and the difference is noticeable. Smooth ride and good grip in both wet and dry conditions.',
-                          'These tyres have transformed the handling of my vehicle. Very quiet on the highway and great cornering stability.',
-                          'Excellent quality at a reasonable price point. Would definitely buy again when these need replacing.',
-                          'Installation was straightforward and the tyres perform exactly as described. No complaints.',
-                          'Been using these for a few months now and they wear evenly. Fuel economy has slightly improved too.'][i % 5]}
+                        {['Fitted these to my car and the difference is noticeable. Great look and solid build quality.',
+                          'These wheels have transformed the look of my vehicle. Excellent finish and perfect fitment.',
+                          'Excellent quality at a reasonable price point. Would definitely buy again.',
+                          'Installation was straightforward and the wheels look exactly as pictured. No complaints.',
+                          'Been running these for a few months now and they still look brand new. Great product.'][i % 5]}
                       </p>
                     </div>
                   ))}
