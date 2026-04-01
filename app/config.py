@@ -4,8 +4,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4.1"
-    openai_planning_model: str = "gpt-5.2"
-    openai_rerank_model: str = "gpt-4.1-mini"
+    openai_planning_model: str = "gpt-5.4"
+    openai_rerank_model: str = "gpt-5.4-mini"
     openai_embedding_model: str = "text-embedding-3-small"
     embedding_dimension: int = 1536
     faiss_index_path: str = "app/data/faiss_index"
