@@ -3,3 +3,6 @@ run:
 
 run-fe:
 	cd frontend && npm run dev
+
+up:
+	docker compose up --build

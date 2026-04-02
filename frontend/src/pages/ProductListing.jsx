@@ -48,8 +48,8 @@ function ProductListing() {
     brand: true,
     price: true,
     wheelSize: true,
-    wheelWidth: false,
-    colour: false,
+    wheelWidth: true,
+    colour: true,
   })
   const [selectedSizes, setSelectedSizes] = useState([])
   const [selectedWidths, setSelectedWidths] = useState([])
