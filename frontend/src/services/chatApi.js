@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000'
+const API_BASE = window.location.origin
 
 export async function sendMessage(sessionId, message, filters = null, productContext = null) {
   const payload = { session_id: sessionId, message }
