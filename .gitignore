@@ -19,3 +19,12 @@ app/data/faiss_indices/
 app/data/faiss_meta.json
 tyre_dataset.csv
 .DS_Store
+
+# Sensitive files — defense-in-depth
+*.key
+*.pem
+*.p12
+.env.local
+.env.*.local
+secrets/
+credentials/
