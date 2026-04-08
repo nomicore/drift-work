@@ -187,24 +187,38 @@ async def collect_requirements(state: AgentState) -> dict:
         }
 
     has_enough = parsed.get("has_enough_info", False)
-    new_phase = "confirming" if has_enough else "collecting"
 
     elapsed = time.perf_counter() - t0
     logger.info(
-        "[collect_requirements] DONE  | has_enough=%s | next_phase=%s | turn=%d | elapsed=%.2fs | updated_requirements=%r",
+        "[collect_requirements] DONE  | has_enough=%s | auto_search=%s | turn=%d | elapsed=%.2fs | updated_requirements=%r",
         has_enough,
-        new_phase,
+        has_enough,
         collecting_turns + 1,
         elapsed,
         str(parsed.get("updated_requirements") or "")[:120],
     )
+
+    updated_requirements = parsed.get(
+        "updated_requirements",
+        state.get("collected_requirements", ""),
+    )
+
+    if has_enough:
+        return {
+            "collected_requirements": updated_requirements,
+            "collect_response_text": parsed.get("response", ""),
+            "intent": "search",
+            "auto_search": True,
+            "conversation_phase": "idle",
+            "collecting_turns": collecting_turns + 1,
+            "is_complete": False,
+        }
+
     return {
-        "collected_requirements": parsed.get(
-            "updated_requirements",
-            state.get("collected_requirements", ""),
-        ),
+        "collected_requirements": updated_requirements,
         "collect_response_text": parsed.get("response", ""),
-        "conversation_phase": new_phase,
+        "auto_search": False,
+        "conversation_phase": "collecting",
         "collecting_turns": collecting_turns + 1,
         "is_complete": False,
     }

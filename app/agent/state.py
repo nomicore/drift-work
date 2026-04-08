@@ -12,7 +12,7 @@ class AgentState(TypedDict):
     intent: str  # "chitchat" | "collect" | "search"
 
     # Conversation phase tracking
-    conversation_phase: str  # "idle" | "collecting" | "confirming"
+    conversation_phase: str  # "idle" | "collecting"
     collected_requirements: str
     collecting_turns: int
 
@@ -32,3 +32,4 @@ class AgentState(TypedDict):
     final_answer: str
     recommended_ids: list[str]
     is_complete: bool
+    auto_search: bool

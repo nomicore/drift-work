@@ -5,7 +5,6 @@ Analyze the user's message in context and decide the next action.
 Current conversation phase: {conversation_phase}
 - "idle": No active search process. The user hasn't started looking for wheels yet.
 - "collecting": We are actively gathering wheel requirements from the user.
-- "confirming": We presented a summary of requirements and are waiting for the user to confirm.
 
 Collected requirements so far: {collected_requirements}
 Collecting turns used: {collecting_turns} / {max_collecting_turns}
@@ -20,28 +19,21 @@ Classify the intent as ONE of:
 or explicitly declining to search for wheels. They do NOT want to search right now.
 - "collect": The user shows intent to find/buy/browse alloy wheels, is describing what they want, \
 or is providing additional details about their wheel needs.
-- "search": The user has confirmed they want to proceed with the search \
-(e.g., "yes", "looks good", "go ahead", "search for that").
+- "search": The user explicitly asks to proceed with a search \
+(e.g., "yes", "go ahead", "search now", "just search").
 
 Rules:
 1. Phase "idle" + casual greeting or off-topic message → "chitchat"
 2. Phase "idle" + any mention of wheels, alloys, rims, car upgrades, or search intent → "collect"
 3. Phase "collecting" + user provides more details or answers questions → "collect"
 4. Phase "collecting" + user explicitly wants to stop or change topic → "chitchat"
-5. Phase "collecting" + user confirms or agrees with the presented summary \
-(e.g., "yes", "looks good", "go ahead", "that's right", "perfect", "search") → "search"
-6. Phase "confirming" + user agrees / says yes / confirms → "search"
-7. Phase "confirming" + user wants to change something → "collect"
-8. Phase "confirming" + user wants to cancel entirely → "chitchat"
-9. If collecting_turns >= {max_collecting_turns} and phase is "collecting" or "confirming" \
-and there are SOME collected requirements → "search" (force proceed with what we have)
+5. If collecting_turns >= {max_collecting_turns} and there are SOME collected requirements → "search"
 
-IMPORTANT — avoid unnecessary ping-pong:
-- If during "collecting" the user's message ALREADY contains enough actionable detail \
-(e.g., wheel size, colour, brand, or style) AND the user signals readiness ("find me", \
-"search for", "I need", "get me", "show me") → classify as "search" so we proceed immediately.
-- If during "collecting" the assistant just showed a summary and the user confirms it \
-in any way → "search". Do NOT send them back to more collecting rounds.
+IMPORTANT:
+- If the user's message ALREADY contains specific actionable detail (size, colour, brand, \
+style, or budget), classify as "collect" and let the collection node decide whether to search.
+- Do NOT classify as "search" just because the user described what they want — \
+that still goes to "collect" so requirements can be enriched before searching.
 
 Respond with ONLY a JSON object:
 {{
@@ -73,7 +65,7 @@ Respond naturally:
 
 COLLECT_REQUIREMENTS_PROMPT = """\
 You are WheelFinder, an alloy wheel shopping assistant. Your goal is to gather enough details \
-to find the perfect alloy wheels for the user.
+to find the perfect alloy wheels for the user, then search immediately — no confirmation step.
 
 Our product database is searchable across these attributes:
 1. Brand / product name / wheel model — the wheel brand, model name, and full product name
@@ -82,8 +74,6 @@ Our product database is searchable across these attributes:
 4. Compatible vehicles — which car(s) the wheel fits
 5. Price — budget range (in $ USD)
 6. Wheel specs — size (diameter), width, colour/finish, style, PCD/stud pattern
-
-We can also filter results exactly by brand, min/max price, wheel size, wheel width, and colour.
 
 Currently collected requirements: {collected_requirements}
 Collecting turn: {collecting_turns} / {max_collecting_turns}
@@ -94,37 +84,29 @@ Chat history:
 User message: {user_query}
 
 Instructions:
-- Extract any new wheel-related details from the user's message
-- Merge them with the existing collected requirements
-- If the user's FIRST message already contains specific details (size, colour, brand, \
-or clear use-case), acknowledge them, present a quick summary, and set has_enough_info \
-to true so we can proceed — do NOT ask extra questions if the info is already actionable
-- If the user is vague on the first turn (e.g., just "I need wheels"), welcome them and \
-ask about their vehicle and preferences
-- If we have at least the wheel size OR a couple of meaningful details: present a summary \
-and ask the user to confirm — do NOT keep asking more questions
-- Only ask follow-ups if we truly have nothing actionable yet AND have turns remaining. \
-Ask at most 1 question, not a list.
+- Extract any new wheel-related details from the user's message and merge with existing requirements
+- If the message contains ANY actionable detail (size, colour, brand, style, use-case, or budget), \
+set has_enough_info to true and respond with a BRIEF acknowledgment like \
+"Got it, searching now..." or "Perfect, let me find those for you!" — then immediately search. \
+Do NOT ask the user to confirm or summarise back to them.
+- If the user is vague (e.g., just "I need wheels" with no other details), welcome them and \
+ask one focused question (e.g., "What size are you looking for?")
+- Only ask a follow-up if we truly have nothing actionable AND turns remain. Ask at most 1 question.
 - If this is the LAST turn ({collecting_turns} >= {max_collecting_turns}): \
-present whatever we have and tell the user you'll search with the available info
-- Be conversational and helpful, not interrogative
-- IMPORTANT: Do NOT over-collect. One or two details are enough to run a useful search. \
-Get to the summary quickly and let the user confirm so we can search.
-- IMPORTANT: Do NOT invent or assume a budget/price range unless the user explicitly \
-mentions one. If the user hasn't stated a budget, leave it out of the requirements entirely.
+set has_enough_info to true and search with whatever was collected.
+- IMPORTANT: Do NOT invent or assume a budget/price range unless the user explicitly mentions one.
 
 Respond with ONLY a JSON object:
 {{
   "updated_requirements": "<complete summary of ALL collected requirements so far>",
   "has_enough_info": true/false,
-  "response": "<your message to the user>"
+  "response": "<brief acknowledgment to show before search results, e.g. 'Got it, searching now...'>"
 }}
 
 Set has_enough_info to true when:
-- The user provided at least one actionable detail (size, colour, brand, style, or budget) \
-and you are presenting a summary for confirmation
+- The user provided at least one actionable detail (size, colour, brand, style, or budget)
 - It's the last collecting turn
-- The user explicitly says to go ahead and search with what we have
+- The user explicitly says to search with what we have
 """
 
 ENHANCE_QUERY_PROMPT = """\

@@ -125,6 +125,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "final_answer": "",
         "recommended_ids": [],
         "is_complete": False,
+        "auto_search": False,
     }
 
     try:

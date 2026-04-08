@@ -3,7 +3,11 @@
 Flow:
   START -> classify_intent
     intent == "chitchat"  -> chitchat_response -> END
-    intent == "collect"   -> collect_requirements -> END  (returns to user)
+    intent == "collect"   -> collect_requirements
+                              auto_search=True  -> enhance_query -> plan_search
+                                                -> search_products -> rerank
+                                                -> generate_answer -> END
+                              auto_search=False -> END  (asks one follow-up question)
     intent == "search"    -> enhance_query -> plan_search -> search_products
                           -> rerank -> generate_answer -> END
 """
@@ -56,8 +60,13 @@ def build_graph() -> StateGraph:
         },
     )
 
+    def _route_after_collect(state: AgentState) -> str:
+        if state.get("auto_search"):
+            return "enhance_query"
+        return END
+
     graph.add_edge("chitchat_response", END)
-    graph.add_edge("collect_requirements", END)
+    graph.add_conditional_edges("collect_requirements", _route_after_collect)
     graph.add_edge("enhance_query", "plan_search")
     graph.add_edge("plan_search", "search_products")
     graph.add_edge("search_products", "rerank")

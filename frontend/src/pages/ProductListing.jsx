@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import ProductCard from '../components/ProductCard'
 import { useStore } from '../context/StoreContext'
 import rawData from '../data/tyre_dataset_with_id.json'
@@ -58,22 +58,11 @@ function ProductListing() {
   const {
     highlightedProductIds,
     clearHighlightedProducts,
-    updateFilters,
-    notifyFilterChange,
   } = useStore()
 
   const highlightedSet = useMemo(
     () => new Set(highlightedProductIds.map(String)),
     [highlightedProductIds],
-  )
-
-  const syncFiltersToContext = useCallback(
-    ({ brands, priceRange: price, sizes, widths, colours }, label) => {
-      const payload = { brands, priceRange: price, sizes, widths, colours }
-      updateFilters(payload)
-      notifyFilterChange(payload, label)
-    },
-    [updateFilters, notifyFilterChange],
   )
 
   const filteredProducts = useMemo(() => {
@@ -140,45 +129,17 @@ function ProductListing() {
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
   const paginatedProducts = filteredProducts.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
-  function buildFilterBag(overrides = {}) {
-    return {
-      brands: selectedBrands,
-      priceRange,
-      sizes: selectedSizes,
-      widths: selectedWidths,
-      colours: selectedColours,
-      ...overrides,
-    }
-  }
-
   function toggleBrand(brand) {
-    setSelectedBrands((prev) => {
-      const next = prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
-      return next
-    })
-    const adding = !selectedBrands.includes(brand)
-    const next = adding ? [...selectedBrands, brand] : selectedBrands.filter((b) => b !== brand)
-    const label = adding
-      ? `Filter applied: brand "${brand}"`
-      : `Filter removed: brand "${brand}"`
-    syncFiltersToContext(buildFilterBag({ brands: next }), label)
+    setSelectedBrands((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
+    )
     setPage(1)
   }
 
-  const priceDebounceRef = useRef(null)
   function handlePriceChange(newRange) {
     setPriceRange(newRange)
     setPage(1)
-    clearTimeout(priceDebounceRef.current)
-    priceDebounceRef.current = setTimeout(() => {
-      const label = `Price range set: ${formatUSD(newRange[0])} – ${formatUSD(newRange[1])}`
-      syncFiltersToContext(buildFilterBag({ priceRange: newRange }), label)
-    }, 800)
   }
-
-  useEffect(() => {
-    return () => clearTimeout(priceDebounceRef.current)
-  }, [])
 
   useEffect(() => {
     if (highlightedProductIds.length > 0) {
@@ -188,37 +149,31 @@ function ProductListing() {
   }, [highlightedProductIds])
 
   function toggleSize(size) {
-    const next = selectedSizes.includes(size) ? selectedSizes.filter((s) => s !== size) : [...selectedSizes, size]
-    setSelectedSizes(next)
-    const adding = !selectedSizes.includes(size)
-    const label = adding ? `Filter applied: wheel size ${size}` : `Filter removed: wheel size ${size}`
-    syncFiltersToContext(buildFilterBag({ sizes: next }), label)
+    setSelectedSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
+    )
     setPage(1)
   }
 
   function toggleWidth(width) {
-    const next = selectedWidths.includes(width) ? selectedWidths.filter((w) => w !== width) : [...selectedWidths, width]
-    setSelectedWidths(next)
-    const adding = !selectedWidths.includes(width)
-    const label = adding ? `Filter applied: wheel width ${width}` : `Filter removed: wheel width ${width}`
-    syncFiltersToContext(buildFilterBag({ widths: next }), label)
+    setSelectedWidths((prev) =>
+      prev.includes(width) ? prev.filter((w) => w !== width) : [...prev, width]
+    )
     setPage(1)
   }
 
   function toggleColour(colour) {
-    const next = selectedColours.includes(colour) ? selectedColours.filter((c) => c !== colour) : [...selectedColours, colour]
-    setSelectedColours(next)
-    const adding = !selectedColours.includes(colour)
-    const label = adding ? `Filter applied: colour "${colour}"` : `Filter removed: colour "${colour}"`
-    syncFiltersToContext(buildFilterBag({ colours: next }), label)
+    setSelectedColours((prev) =>
+      prev.includes(colour) ? prev.filter((c) => c !== colour) : [...prev, colour]
+    )
     setPage(1)
   }
 
   function handleBrandTab(brand) {
-    const next = selectedBrands.includes(brand) ? selectedBrands.filter((b) => b !== brand) : [brand]
-    setSelectedBrands(next)
+    setSelectedBrands((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [brand]
+    )
     setPage(1)
-    syncFiltersToContext(buildFilterBag({ brands: next }), next.length ? `Filter applied: brand "${brand}"` : 'Brand filter cleared')
   }
 
   function clearAllFilters() {
@@ -229,7 +184,6 @@ function ProductListing() {
     setSearchQuery('')
     setPriceRange([0, MAX_PRICE])
     setPage(1)
-    syncFiltersToContext({ brands: [], priceRange: [0, MAX_PRICE], sizes: [], widths: [], colours: [] }, 'All filters cleared')
   }
 
   const hasActiveFilters =
