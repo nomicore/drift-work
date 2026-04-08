@@ -43,7 +43,7 @@ export default function ChatPanel() {
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState(generateSessionId)
 
-  const { updateHighlightedProducts, clearHighlightedProducts, currentProduct } = useStore()
+  const { currentProduct } = useStore()
 
   const messagesEnd = useRef(null)
   const inputRef = useRef(null)
@@ -87,9 +87,6 @@ export default function ChatPanel() {
           ...prev,
           { role: 'assistant', content: data.response, badge, recommendedIds },
         ])
-        if (recommendedIds) {
-          updateHighlightedProducts(recommendedIds)
-        }
       } catch (err) {
         setMessages((prev) => [
           ...prev,
@@ -99,7 +96,7 @@ export default function ChatPanel() {
         setLoading(false)
       }
     },
-    [input, loading, sessionId, updateHighlightedProducts],
+    [input, loading, sessionId],
   )
 
   const handleKeyDown = (e) => {
@@ -117,7 +114,6 @@ export default function ChatPanel() {
     }
     setMessages([])
     setSessionId(generateSessionId())
-    clearHighlightedProducts()
   }
 
   return (

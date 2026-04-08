@@ -173,46 +173,6 @@
   opacity: 0.7;
 }
 
-/* AI recommendation banner */
-.listing-ai-banner {
-  background: linear-gradient(90deg, #eef2ff 0%, #e0e7ff 100%);
-  border-bottom: 1px solid #c7d2fe;
-}
-
-.listing-ai-banner__inner {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 10px var(--side-padding);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #4338ca;
-}
-
-.listing-ai-banner__inner svg {
-  flex-shrink: 0;
-  color: #6366f1;
-}
-
-.listing-ai-banner__clear {
-  margin-left: auto;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4338ca;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.25);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.listing-ai-banner__clear:hover {
-  background: rgba(99, 102, 241, 0.2);
-}
-
 /* Layout */
 .listing {
   max-width: var(--max-width);

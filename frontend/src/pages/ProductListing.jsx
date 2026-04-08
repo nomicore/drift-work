@@ -1,6 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import ProductCard from '../components/ProductCard'
-import { useStore } from '../context/StoreContext'
 import rawData from '../data/tyre_dataset_with_id.json'
 import './ProductListing.css'
 
@@ -55,15 +54,6 @@ function ProductListing() {
   const [selectedWidths, setSelectedWidths] = useState([])
   const [selectedColours, setSelectedColours] = useState([])
 
-  const {
-    highlightedProductIds,
-    clearHighlightedProducts,
-  } = useStore()
-
-  const highlightedSet = useMemo(
-    () => new Set(highlightedProductIds.map(String)),
-    [highlightedProductIds],
-  )
 
   const filteredProducts = useMemo(() => {
     let result = tyreData
@@ -110,21 +100,8 @@ function ProductListing() {
       result = [...result].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     }
 
-    if (highlightedSet.size > 0 && sortBy === 'default') {
-      const highlighted = []
-      const rest = []
-      for (const p of result) {
-        if (highlightedSet.has(String(p.id))) {
-          highlighted.push(p)
-        } else {
-          rest.push(p)
-        }
-      }
-      result = [...highlighted, ...rest]
-    }
-
     return result
-  }, [searchQuery, selectedBrands, selectedSizes, selectedWidths, selectedColours, priceRange, sortBy, highlightedSet])
+  }, [searchQuery, selectedBrands, selectedSizes, selectedWidths, selectedColours, priceRange, sortBy])
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
   const paginatedProducts = filteredProducts.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
@@ -140,13 +117,6 @@ function ProductListing() {
     setPriceRange(newRange)
     setPage(1)
   }
-
-  useEffect(() => {
-    if (highlightedProductIds.length > 0) {
-      setPage(1)
-      setSortBy('default')
-    }
-  }, [highlightedProductIds])
 
   function toggleSize(size) {
     setSelectedSizes((prev) =>
@@ -257,25 +227,6 @@ function ProductListing() {
           </div>
         </div>
       </div>
-
-      {highlightedProductIds.length > 0 && (
-        <div className="listing-ai-banner">
-          <div className="listing-ai-banner__inner">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            <span>
-              AI recommended {highlightedProductIds.length} product{highlightedProductIds.length > 1 ? 's' : ''} — highlighted below
-            </span>
-            <button
-              className="listing-ai-banner__clear"
-              onClick={clearHighlightedProducts}
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="listing">
         <div className="listing__inner">
@@ -451,7 +402,6 @@ function ProductListing() {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  highlighted={highlightedSet.has(String(product.id))}
                 />
               ))}
             </div>
