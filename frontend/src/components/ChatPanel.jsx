@@ -34,7 +34,6 @@ function badgeFor(data) {
 const BADGE_LABELS = {
   chat: 'Chatting',
   collect: 'Gathering Details',
-  answer: 'Wheel Recommendations',
 }
 
 export default function ChatPanel() {
