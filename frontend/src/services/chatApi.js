@@ -59,6 +59,30 @@ export async function analyzeVehicleImage(imageBase64, mediaType = 'image/jpeg')
   return res.json()
 }
 
+export async function visualizeWheel(vehicle, wheel) {
+  const res = await fetch(`${API_BASE}/visualize-wheel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vehicle_make: vehicle.make,
+      vehicle_model: vehicle.model,
+      vehicle_year: vehicle.year,
+      vehicle_colour: vehicle.colour || '',
+      wheel_name: wheel.name || '',
+      wheel_brand: wheel.brand || '',
+      wheel_size: wheel.size || '',
+      wheel_width: wheel.width || '',
+      wheel_colour: wheel.colour || '',
+      wheel_image_url: wheel.imageUrl || '',
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Visualize failed (${res.status}): ${text}`)
+  }
+  return res.json()
+}
+
 export async function resetSession(sessionId) {
   const res = await fetch(`${API_BASE}/reset/${sessionId}`, {
     method: 'POST',

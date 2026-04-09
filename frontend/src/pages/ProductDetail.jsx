@@ -29,7 +29,7 @@ function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(4)
   const [activeTab, setActiveTab] = useState('description')
-  const { setCurrentProduct } = useStore()
+  const { setCurrentProduct, setTryOnProduct } = useStore()
 
   useEffect(() => {
     if (product) {
@@ -129,6 +129,25 @@ function ProductDetail() {
                     e.target.src = `https://placehold.co/700x700/1a1a2e/e67e22?text=${encodeURIComponent(product.wheel_size || brandName)}&font=raleway`
                   }}
                 />
+                <button
+                  className="detail__try-on-btn"
+                  onClick={() => setTryOnProduct({
+                    name: product.name || '',
+                    brand: product.Brand || '',
+                    size: product.wheel_size || '',
+                    width: product.wheel_width || '',
+                    colour: product.colour || '',
+                    imageUrl: product.Image || '',
+                  })}
+                  title="See these wheels on your car"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+                    <path d="M12 8v4l3 3"/>
+                    <path d="M9.5 3.5l1 2M14.5 3.5l-1 2M20.5 9.5l-2 1M20.5 14.5l-2-1M14.5 20.5l-1-2M9.5 20.5l1-2M3.5 14.5l2-1M3.5 9.5l2 1"/>
+                  </svg>
+                  Fit it on my ride
+                </button>
               </div>
             </div>
 

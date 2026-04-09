@@ -42,6 +42,24 @@ class ChatResponse(BaseModel):
     recommended_product_ids: list[str] = Field(default_factory=list)
 
 
+class VisualizeWheelRequest(BaseModel):
+    vehicle_make: str
+    vehicle_model: str
+    vehicle_year: str
+    vehicle_colour: str = ""
+    wheel_name: str
+    wheel_brand: str = ""
+    wheel_size: str = ""
+    wheel_width: str = ""
+    wheel_colour: str = ""
+    wheel_image_url: str = ""
+
+
+class VisualizeWheelResponse(BaseModel):
+    image_url: str
+    prompt_used: str = ""
+
+
 class VehicleImageRequest(BaseModel):
     image_base64: str
     media_type: str = "image/jpeg"

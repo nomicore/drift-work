@@ -4,9 +4,10 @@ const StoreContext = createContext(null)
 
 export function StoreProvider({ children }) {
   const [currentProduct, setCurrentProduct] = useState(null)
+  const [tryOnProduct, setTryOnProduct] = useState(null)
 
   return (
-    <StoreContext.Provider value={{ currentProduct, setCurrentProduct }}>
+    <StoreContext.Provider value={{ currentProduct, setCurrentProduct, tryOnProduct, setTryOnProduct }}>
       {children}
     </StoreContext.Provider>
   )

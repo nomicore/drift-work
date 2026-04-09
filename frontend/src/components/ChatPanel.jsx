@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { sendMessage, resetSession } from '../services/chatApi'
+import { sendMessage, resetSession, visualizeWheel } from '../services/chatApi'
 import { useStore } from '../context/StoreContext'
 import { proxyImageUrl } from '../utils/imageProxy'
 import rawData from '../data/tyre_dataset_with_id.json'
@@ -44,7 +44,7 @@ export default function ChatPanel() {
   const [sessionId, setSessionId] = useState(generateSessionId)
   const [vehicle, setVehicle] = useState(null)
 
-  const { currentProduct } = useStore()
+  const { currentProduct, tryOnProduct, setTryOnProduct } = useStore()
 
   const messagesEnd = useRef(null)
   const inputRef = useRef(null)
@@ -57,6 +57,21 @@ export default function ChatPanel() {
 
   useEffect(() => { scrollToBottom() }, [messages, loading, scrollToBottom])
   useEffect(() => { if (open) inputRef.current?.focus() }, [open])
+
+  // Handle "Fit it on my ride" trigger from product page
+  useEffect(() => {
+    if (!tryOnProduct) return
+    setOpen(true)
+    if (vehicle) {
+      // Vehicle already known — go straight to generation
+      handleTryOnGenerate(tryOnProduct, vehicle)
+    } else {
+      // Need vehicle details first
+      setMessages([{ role: 'try-on-prompt', product: tryOnProduct }])
+    }
+    setTryOnProduct(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tryOnProduct])
 
   const send = useCallback(
     async (text) => {
@@ -85,6 +100,36 @@ export default function ChatPanel() {
     },
     [input, loading, sessionId],
   )
+
+  const handleTryOnGenerate = useCallback(async (product, vehicleData) => {
+    setLoading(true)
+    setMessages((prev) => [
+      ...prev.filter((m) => m.role !== 'try-on-prompt'),
+      { role: 'vehicle-confirm', vehicle: vehicleData },
+      { role: 'try-on-loading', product },
+    ])
+    try {
+      const data = await visualizeWheel(vehicleData, product)
+      setMessages((prev) => prev.map((m) =>
+        m.role === 'try-on-loading'
+          ? { role: 'try-on-result', imageUrl: data.image_url, product, vehicle: vehicleData }
+          : m
+      ))
+    } catch (err) {
+      setMessages((prev) => prev.map((m) =>
+        m.role === 'try-on-loading'
+          ? { role: 'error', content: `Visualisation failed: ${err.message}` }
+          : m
+      ))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleTryOnVehicleSubmit = useCallback(async (vehicleData, product) => {
+    setVehicle(vehicleData)
+    await handleTryOnGenerate(product, vehicleData)
+  }, [handleTryOnGenerate])
 
   const handleVehicleFormOpen = useCallback(() => {
     setMessages([{ role: 'vehicle-form' }])
@@ -268,11 +313,67 @@ export default function ChatPanel() {
               )
             }
 
+            // Try-on: prompt user for vehicle if not set
+            if (msg.role === 'try-on-prompt') {
+              return (
+                <div key={i} className="chat-try-on-prompt">
+                  <div className="chat-try-on-prompt__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                  </div>
+                  <p>To visualise <strong>{msg.product.brand} {msg.product.name.split(' ').slice(-3).join(' ')}</strong> on your car, I need your vehicle details first.</p>
+                  <button
+                    className="chat-try-on-prompt__btn"
+                    onClick={() => setMessages((prev) => prev.map((m) =>
+                      m.role === 'try-on-prompt'
+                        ? { role: 'vehicle-form', pendingProduct: m.product }
+                        : m
+                    ))}
+                  >
+                    Enter my car details
+                  </button>
+                </div>
+              )
+            }
+
+            // Try-on: generating
+            if (msg.role === 'try-on-loading') {
+              return (
+                <div key={i} className="chat-try-on-loading">
+                  <div className="chat-try-on-loading__spinner" />
+                  <span>Generating your visualisation…</span>
+                </div>
+              )
+            }
+
+            // Try-on: result image
+            if (msg.role === 'try-on-result') {
+              return (
+                <div key={i} className="chat-try-on-result">
+                  <p className="chat-try-on-result__label">
+                    Here's how <strong>{msg.product.brand}</strong> wheels could look on your {msg.vehicle.year} {msg.vehicle.make} {msg.vehicle.model}:
+                  </p>
+                  <img
+                    src={msg.imageUrl}
+                    alt="AI visualisation"
+                    className="chat-try-on-result__img"
+                  />
+                  <span className="chat-try-on-result__note">AI-generated concept image</span>
+                </div>
+              )
+            }
+
             // Inline vehicle selector form
             if (msg.role === 'vehicle-form') {
+              const pendingProduct = msg.pendingProduct ?? null
               return (
                 <div key={i} className="chat-vehicle-form-wrap">
-                  <VehicleForm onSubmit={handleVehicleSubmit} />
+                  <VehicleForm
+                    onSubmit={pendingProduct
+                      ? (v) => handleTryOnVehicleSubmit(v, pendingProduct)
+                      : handleVehicleSubmit}
+                  />
                 </div>
               )
             }

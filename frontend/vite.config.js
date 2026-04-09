@@ -9,6 +9,7 @@ export default defineConfig({
       '/reset': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
       '/analyze-vehicle': 'http://localhost:8000',
+      '/visualize-wheel': 'http://localhost:8000',
     },
   },
 })

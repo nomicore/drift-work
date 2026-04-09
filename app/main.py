@@ -11,7 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.config import settings
-from app.models import ChatRequest, ChatResponse, VehicleImageRequest, VehicleAnalysisResponse
+import httpx
+from app.models import (
+    ChatRequest, ChatResponse,
+    VehicleImageRequest, VehicleAnalysisResponse,
+    VisualizeWheelRequest, VisualizeWheelResponse,
+)
 from app.agent.graph import workflow
 from app.search.faiss_store import tyre_store
 
@@ -192,6 +197,102 @@ async def chat(request: ChatRequest) -> ChatResponse:
         response=response_text,
         is_final_answer=True,
         recommended_product_ids=recommended_ids,
+    )
+
+
+_OFF_ROAD = {"Wrangler", "Gladiator", "F-150", "Land Cruiser", "Grand Cherokee",
+             "Cherokee", "Compass", "Renegade", "Explorer"}
+_SPORTS   = {"Mustang", "M3", "AMG GT", "RS6", "Supra", "NSX", "Stinger", "GR86", "M3"}
+_ELECTRIC = {"IONIQ 5", "EV6", "ID.4"}
+_LUXURY   = {"A6", "E-Class", "GLE", "GLC", "Q7", "X5", "5 Series", "S-Class", "GLE"}
+
+
+def _scene_for(model: str) -> str:
+    if model in _OFF_ROAD:
+        return (
+            "parked on rugged rocky off-road terrain surrounded by red desert landscape, "
+            "dust kicked up, dramatic wide sky, golden hour lighting"
+        )
+    if model in _SPORTS:
+        return (
+            "driving along a winding coastal highway at golden hour, ocean visible in background, "
+            "motion blur on road, cinematic lens flare"
+        )
+    if model in _ELECTRIC:
+        return (
+            "parked in a sleek modern urban plaza, glass skyscrapers reflecting soft daylight, "
+            "clean futuristic setting"
+        )
+    if model in _LUXURY:
+        return (
+            "parked on a tree-lined boulevard in an upscale European neighbourhood, "
+            "soft dappled morning light, cobblestone road"
+        )
+    return (
+        "parked on a clean city street, soft natural daylight, "
+        "modern urban backdrop, professional automotive photography"
+    )
+
+
+@app.post("/visualize-wheel", response_model=VisualizeWheelResponse)
+async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelResponse:
+    """Generate an AI image of the user's car wearing the selected wheel using fal.ai."""
+    if not settings.fal_key:
+        raise HTTPException(status_code=500, detail="FAL_KEY is not configured")
+
+    scene = _scene_for(request.vehicle_model)
+
+    colour_clause = f" in {request.vehicle_colour}" if request.vehicle_colour else ""
+    wheel_spec = " ".join(filter(None, [
+        request.wheel_brand,
+        request.wheel_name,
+        request.wheel_size and f"{request.wheel_size} diameter",
+        request.wheel_width and f"{request.wheel_width} width",
+        request.wheel_colour and f"in {request.wheel_colour}",
+    ]))
+
+    prompt = (
+        f"Photorealistic automotive photograph of a {request.vehicle_year} "
+        f"{request.vehicle_make} {request.vehicle_model}{colour_clause}, "
+        f"fitted with {wheel_spec} alloy wheels, {scene}. "
+        "The wheels are clearly visible and prominent. "
+        "Shot with a professional DSLR, sharp focus, high detail, 4K quality."
+    )
+
+    payload: dict = {
+        "prompt": prompt,
+        "num_images": 1,
+        "image_size": "landscape_4_3",
+        "sync_mode": True,
+        "enable_safety_checker": False,
+    }
+    if request.wheel_image_url:
+        payload["image_url"] = request.wheel_image_url
+        payload["image_prompt_strength"] = 0.15  # subtle wheel style reference
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://fal.run/fal-ai/flux-pro/v1.1-ultra",
+                headers={"Authorization": f"Key {settings.fal_key}"},
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as e:
+        logger.exception("fal.ai request failed")
+        raise HTTPException(status_code=502, detail=f"Image generation failed: {e.response.text}") from e
+    except Exception as e:
+        logger.exception("fal.ai request failed")
+        raise HTTPException(status_code=502, detail=f"Image generation error: {e}") from e
+
+    images = data.get("images", [])
+    if not images:
+        raise HTTPException(status_code=502, detail="fal.ai returned no images")
+
+    return VisualizeWheelResponse(
+        image_url=images[0]["url"],
+        prompt_used=prompt,
     )
 
 
