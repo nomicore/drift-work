@@ -257,7 +257,7 @@ export default function ChatPanel() {
                   <button
                     className="chat-panel__vehicle-edit"
                     title="Edit vehicle"
-                    onClick={() => {}}
+                    onClick={() => setMessages((prev) => [...prev, { role: 'vehicle-form' }])}
                     aria-label="Edit vehicle"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
