@@ -101,6 +101,18 @@ export function getModelData(make, model) {
 }
 
 export const COLOURS = [
-  'Black', 'White', 'Silver', 'Grey',
-  'Blue', 'Red', 'Green', 'Orange', 'Yellow', 'Bronze',
+  // Neutrals
+  'Black', 'Graphite', 'Grey', 'Silver', 'Pearl White', 'White',
+  // Blues
+  'Navy Blue', 'Blue', 'Sky Blue', 'Teal',
+  // Reds
+  'Burgundy', 'Red',
+  // Greens
+  'Olive Green', 'Sage Green', 'Green',
+  // Warm tones
+  'Orange', 'Yellow',
+  // Earth / luxury
+  'Beige', 'Champagne', 'Brown', 'Bronze',
+  // Other
+  'Purple', 'Pink',
 ]

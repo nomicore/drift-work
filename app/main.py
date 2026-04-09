@@ -203,15 +203,26 @@ async def analyze_vehicle(request: VehicleImageRequest) -> VehicleAnalysisRespon
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
+    colour_list = (
+        "Black, White, Silver, Grey, Graphite, Pearl White, "
+        "Navy Blue, Blue, Sky Blue, Teal, "
+        "Red, Burgundy, "
+        "Green, Sage Green, Olive Green, "
+        "Orange, Yellow, "
+        "Beige, Champagne, Brown, Bronze, "
+        "Purple, Pink"
+    )
     prompt = (
-        "Identify the vehicle in this image. "
-        "Return a JSON object with exactly these fields: "
-        "make (brand name, e.g. Ford), "
-        "model (e.g. Mustang), "
-        "year (best estimate as a 4-digit string, e.g. '2021'), "
-        "colour (choose the closest from: Black, White, Silver, Grey, Blue, Red, Green, Orange, Yellow, Bronze), "
-        "summary (one short sentence, e.g. 'Detected a 2021 Ford Mustang in Red'). "
-        "Use an empty string for any field you are not confident about."
+        "You are an expert automotive identifier. Analyse this vehicle image carefully.\n"
+        "Return a JSON object with exactly these fields:\n"
+        "- make: the manufacturer brand (e.g. 'Ford', 'BMW', 'Kia'). Always provide your best guess.\n"
+        "- model: the specific model name (e.g. 'Picanto', 'Mustang', '3 Series'). "
+        "Look at the body shape, badge, grille, lights, and any visible text. Always provide your best guess — do NOT leave blank.\n"
+        "- year: estimated model year as a 4-digit string (e.g. '2023'). Best guess based on generation styling.\n"
+        f"- colour: choose the single closest match from this list: {colour_list}. "
+        "Pay close attention to the actual body paint — muted sage/mint greens should be 'Sage Green', grey-greens should be 'Olive Green', etc.\n"
+        "- summary: one short sentence summarising what you detected, e.g. 'Detected a 2023 Kia Picanto in Sage Green'.\n"
+        "Only use an empty string if a field is truly impossible to determine (e.g. make is completely hidden)."
     )
 
     try:
