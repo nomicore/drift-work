@@ -3,7 +3,7 @@ import { VEHICLE_DATA, MAKES, COLOURS, getModelData } from '../data/vehicleData'
 import { analyzeVehicleImage } from '../services/chatApi'
 import './VehicleForm.css'
 
-export default function VehicleForm({ onSubmit }) {
+export default function VehicleForm({ onSubmit, submitLabel = "That's my car" }) {
   const [tab, setTab] = useState('form')
 
   // Form fields
@@ -237,7 +237,7 @@ export default function VehicleForm({ onSubmit }) {
             onClick={handleSubmit}
             disabled={!canSubmit}
           >
-            Find my wheels
+            {submitLabel}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />

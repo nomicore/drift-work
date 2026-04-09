@@ -262,13 +262,10 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
     payload: dict = {
         "prompt": prompt,
         "num_images": 1,
-        "image_size": "landscape_4_3",
+        "image_size": "square_hd",
         "sync_mode": True,
         "enable_safety_checker": False,
     }
-    if request.wheel_image_url:
-        payload["image_url"] = request.wheel_image_url
-        payload["image_prompt_strength"] = 0.15  # subtle wheel style reference
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:

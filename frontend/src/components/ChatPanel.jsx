@@ -43,6 +43,7 @@ export default function ChatPanel() {
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState(generateSessionId)
   const [vehicle, setVehicle] = useState(null)
+  const [lightboxUrl, setLightboxUrl] = useState(null)
 
   const { currentProduct, tryOnProduct, setTryOnProduct } = useStore()
 
@@ -57,6 +58,11 @@ export default function ChatPanel() {
 
   useEffect(() => { scrollToBottom() }, [messages, loading, scrollToBottom])
   useEffect(() => { if (open) inputRef.current?.focus() }, [open])
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') setLightboxUrl(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   // Handle "Fit it on my ride" trigger from product page
   useEffect(() => {
@@ -208,6 +214,22 @@ export default function ChatPanel() {
         onClick={() => setOpen(false)}
       />
 
+      {lightboxUrl && (
+        <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
+          <button className="chat-lightbox__close" onClick={() => setLightboxUrl(null)} aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="AI visualisation full size"
+            className="chat-lightbox__img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       <aside className={`chat-panel ${open ? 'chat-panel--open' : ''}`}>
         {/* ── Header ── */}
         <div className="chat-panel__header">
@@ -358,6 +380,8 @@ export default function ChatPanel() {
                     src={msg.imageUrl}
                     alt="AI visualisation"
                     className="chat-try-on-result__img"
+                    onClick={() => setLightboxUrl(msg.imageUrl)}
+                    title="Click to enlarge"
                   />
                   <span className="chat-try-on-result__note">AI-generated concept image</span>
                 </div>
@@ -373,6 +397,7 @@ export default function ChatPanel() {
                     onSubmit={pendingProduct
                       ? (v) => handleTryOnVehicleSubmit(v, pendingProduct)
                       : handleVehicleSubmit}
+                    submitLabel={pendingProduct ? "Visualise it" : "That's my car"}
                   />
                 </div>
               )
