@@ -209,29 +209,14 @@ _LUXURY   = {"A6", "E-Class", "GLE", "GLC", "Q7", "X5", "5 Series", "S-Class", "
 
 def _scene_for(model: str) -> str:
     if model in _OFF_ROAD:
-        return (
-            "parked on rugged rocky off-road terrain surrounded by red desert landscape, "
-            "dust kicked up, dramatic wide sky, golden hour lighting"
-        )
+        return "parked on a flat dirt trail with light desert scrub in the background, overcast natural light"
     if model in _SPORTS:
-        return (
-            "driving along a winding coastal highway at golden hour, ocean visible in background, "
-            "motion blur on road, cinematic lens flare"
-        )
+        return "parked on a smooth tarmac road with a coastal cliff backdrop, soft overcast daylight"
     if model in _ELECTRIC:
-        return (
-            "parked in a sleek modern urban plaza, glass skyscrapers reflecting soft daylight, "
-            "clean futuristic setting"
-        )
+        return "parked on a clean concrete surface in a modern urban setting, soft overcast daylight"
     if model in _LUXURY:
-        return (
-            "parked on a tree-lined boulevard in an upscale European neighbourhood, "
-            "soft dappled morning light, cobblestone road"
-        )
-    return (
-        "parked on a clean city street, soft natural daylight, "
-        "modern urban backdrop, professional automotive photography"
-    )
+        return "parked on a smooth asphalt road with a tree-lined boulevard in the background, soft daylight"
+    return "parked on a clean asphalt surface, neutral grey background, soft diffused daylight"
 
 
 @app.post("/visualize-wheel", response_model=VisualizeWheelResponse)
@@ -252,11 +237,15 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
     ]))
 
     prompt = (
-        f"Photorealistic automotive photograph of a {request.vehicle_year} "
-        f"{request.vehicle_make} {request.vehicle_model}{colour_clause}, "
-        f"fitted with {wheel_spec} alloy wheels, {scene}. "
-        "The wheels are clearly visible and prominent. "
-        "Shot with a professional DSLR, sharp focus, high detail, 4K quality."
+        f"Clean professional automotive product photograph of a completely stock, unmodified "
+        f"{request.vehicle_year} {request.vehicle_make} {request.vehicle_model}{colour_clause}, "
+        f"fitted with {wheel_spec} alloy wheels. "
+        "Camera angle: front three-quarter view from the driver's side, slightly low angle so all four wheels are clearly visible, "
+        "identical to a standard dealership or press photo. "
+        f"Setting: {scene}. "
+        "The car is factory-standard with no lift kit, no body kit, no custom bumpers, no roof rack, no modifications whatsoever. "
+        "Natural soft daylight, no dramatic lens flare, no motion blur, no dust clouds, no action pose. "
+        "The vehicle is stationary. Sharp focus, realistic textures, 4K quality."
     )
 
     payload: dict = {
