@@ -46,6 +46,19 @@ export async function sendMessage(sessionId, message, filters = null, productCon
   return res.json()
 }
 
+export async function analyzeVehicleImage(imageBase64, mediaType = 'image/jpeg') {
+  const res = await fetch(`${API_BASE}/analyze-vehicle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_base64: imageBase64, media_type: mediaType }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Analysis failed (${res.status}): ${text}`)
+  }
+  return res.json()
+}
+
 export async function resetSession(sessionId) {
   const res = await fetch(`${API_BASE}/reset/${sessionId}`, {
     method: 'POST',

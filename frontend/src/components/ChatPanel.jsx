@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { sendMessage, resetSession } from '../services/chatApi'
 import { useStore } from '../context/StoreContext'
 import { proxyImageUrl } from '../utils/imageProxy'
 import rawData from '../data/tyre_dataset_with_id.json'
 import StarRating from './StarRating'
+import VehicleForm from './VehicleForm'
 import './ChatPanel.css'
 
 const tyreData = rawData.data
@@ -42,6 +43,7 @@ export default function ChatPanel() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState(generateSessionId)
+  const [vehicle, setVehicle] = useState(null)
 
   const { currentProduct } = useStore()
 
@@ -54,13 +56,8 @@ export default function ChatPanel() {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, loading, scrollToBottom])
-
-  useEffect(() => {
-    if (open) inputRef.current?.focus()
-  }, [open])
+  useEffect(() => { scrollToBottom() }, [messages, loading, scrollToBottom])
+  useEffect(() => { if (open) inputRef.current?.focus() }, [open])
 
   const send = useCallback(
     async (text) => {
@@ -72,31 +69,61 @@ export default function ChatPanel() {
       setLoading(true)
 
       try {
-        const data = await sendMessage(
-          sessionId,
-          trimmed,
-          null,
-          currentProductRef.current,
-        )
+        const data = await sendMessage(sessionId, trimmed, null, currentProductRef.current)
         const badge = badgeFor(data)
         const recommendedIds =
           data.is_final_answer && data.recommended_product_ids?.length
-            ? data.recommended_product_ids
-            : null
+            ? data.recommended_product_ids : null
         setMessages((prev) => [
           ...prev,
           { role: 'assistant', content: data.response, badge, recommendedIds },
         ])
       } catch (err) {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'error', content: err.message },
-        ])
+        setMessages((prev) => [...prev, { role: 'error', content: err.message }])
       } finally {
         setLoading(false)
       }
     },
     [input, loading, sessionId],
+  )
+
+  const handleVehicleFormOpen = useCallback(() => {
+    setMessages([{ role: 'vehicle-form' }])
+  }, [])
+
+  const handleVehicleSubmit = useCallback(
+    async (vehicleData) => {
+      setVehicle(vehicleData)
+      // Replace the form in the message list with a compact confirmation pill
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.role === 'vehicle-form'
+            ? { role: 'vehicle-confirm', vehicle: vehicleData }
+            : m,
+        ),
+      )
+      setLoading(true)
+      const parts = ['Show me alloy wheels']
+      if (vehicleData.wheelSize) parts.push(`with ${vehicleData.wheelSize} diameter`)
+      if (vehicleData.wheelWidth) parts.push(`and ${vehicleData.wheelWidth} width`)
+      const query = parts.join(' ') + ' available in the catalogue.'
+      try {
+        const data = await sendMessage(sessionId, query, null, null)
+        const badge = badgeFor(data)
+        const recommendedIds =
+          data.is_final_answer && data.recommended_product_ids?.length
+            ? data.recommended_product_ids : null
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: data.response, badge, recommendedIds },
+        ])
+      } catch (err) {
+        setMessages((prev) => [...prev, { role: 'error', content: err.message }])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [sessionId],
   )
 
   const handleKeyDown = (e) => {
@@ -107,13 +134,10 @@ export default function ChatPanel() {
   }
 
   const handleReset = async () => {
-    try {
-      await resetSession(sessionId)
-    } catch {
-      /* best-effort */
-    }
+    try { await resetSession(sessionId) } catch { /* best-effort */ }
     setMessages([])
     setSessionId(generateSessionId())
+    setVehicle(null)
   }
 
   return (
@@ -141,6 +165,7 @@ export default function ChatPanel() {
       />
 
       <aside className={`chat-panel ${open ? 'chat-panel--open' : ''}`}>
+        {/* ── Header ── */}
         <div className="chat-panel__header">
           <div className="chat-panel__header-left">
             <div className="chat-panel__header-icon">
@@ -151,24 +176,41 @@ export default function ChatPanel() {
             <div>
               <div className="chat-panel__title">Wheel Finder AI</div>
               <div className="chat-panel__subtitle">Ask about alloy wheels</div>
+              {vehicle && (
+                <div className="chat-panel__vehicle-badge">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h13l4 4v6h-2" />
+                    <path d="M6 9l2-4h7l2 4" />
+                    <circle cx="8.5" cy="17" r="2.5" />
+                    <circle cx="17.5" cy="17" r="2.5" />
+                  </svg>
+                  <span>
+                    {vehicle.year} {vehicle.make} {vehicle.model}
+                    {vehicle.colour ? ` · ${vehicle.colour}` : ''}
+                  </span>
+                  <button
+                    className="chat-panel__vehicle-edit"
+                    title="Edit vehicle"
+                    onClick={() => {}}
+                    aria-label="Edit vehicle"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="chat-panel__header-actions">
-            <button
-              className="chat-panel__header-btn"
-              onClick={handleReset}
-              title="Reset conversation"
-            >
+            <button className="chat-panel__header-btn" onClick={handleReset} title="Reset conversation">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
               </svg>
             </button>
-            <button
-              className="chat-panel__header-btn"
-              onClick={() => setOpen(false)}
-              title="Close"
-            >
+            <button className="chat-panel__header-btn" onClick={() => setOpen(false)} title="Close">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -177,6 +219,7 @@ export default function ChatPanel() {
           </div>
         </div>
 
+        {/* ── Messages ── */}
         <div className="chat-panel__messages">
           {messages.length === 0 && !loading && (
             <div className="chat-panel__welcome">
@@ -193,25 +236,26 @@ export default function ChatPanel() {
               </p>
               <div className="chat-panel__suggestions">
                 {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    className="chat-panel__suggestion"
-                    onClick={() => send(s)}
-                  >
+                  <button key={s} className="chat-panel__suggestion" onClick={() => send(s)}>
                     {s}
                   </button>
                 ))}
+                <button className="chat-panel__vehicle-btn" onClick={handleVehicleFormOpen}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h13l4 4v6h-2" />
+                    <path d="M6 9l2-4h7l2 4" />
+                    <circle cx="8.5" cy="17" r="2.5" />
+                    <circle cx="17.5" cy="17" r="2.5" />
+                  </svg>
+                  Recommend for my vehicle
+                </button>
               </div>
             </div>
           )}
 
           {messages.map((msg, i) => {
             if (msg.role === 'error') {
-              return (
-                <div key={i} className="chat-panel__error">
-                  {msg.content}
-                </div>
-              )
+              return <div key={i} className="chat-panel__error">{msg.content}</div>
             }
 
             if (msg.role === 'system') {
@@ -221,6 +265,36 @@ export default function ChatPanel() {
                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                   </svg>
                   {msg.content}
+                </div>
+              )
+            }
+
+            // Inline vehicle selector form
+            if (msg.role === 'vehicle-form') {
+              return (
+                <div key={i} className="chat-vehicle-form-wrap">
+                  <VehicleForm onSubmit={handleVehicleSubmit} />
+                </div>
+              )
+            }
+
+            // Confirmation pill shown after form is submitted
+            if (msg.role === 'vehicle-confirm') {
+              return (
+                <div key={i} className="chat-vehicle-confirm">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h13l4 4v6h-2" />
+                    <path d="M6 9l2-4h7l2 4" />
+                    <circle cx="8.5" cy="17" r="2.5" />
+                    <circle cx="17.5" cy="17" r="2.5" />
+                  </svg>
+                  <span>
+                    Finding wheels for:{' '}
+                    <strong>
+                      {msg.vehicle.year} {msg.vehicle.make} {msg.vehicle.model}
+                    </strong>
+                    {msg.vehicle.colour ? ` · ${msg.vehicle.colour}` : ''}
+                  </span>
                 </div>
               )
             }
@@ -326,6 +400,7 @@ export default function ChatPanel() {
           <div ref={messagesEnd} />
         </div>
 
+        {/* ── Input ── */}
         <div className="chat-panel__input-area">
           <div className="chat-panel__input-row">
             <textarea

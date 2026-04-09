@@ -42,6 +42,19 @@ class ChatResponse(BaseModel):
     recommended_product_ids: list[str] = Field(default_factory=list)
 
 
+class VehicleImageRequest(BaseModel):
+    image_base64: str
+    media_type: str = "image/jpeg"
+
+
+class VehicleAnalysisResponse(BaseModel):
+    make: str = ""
+    model: str = ""
+    year: str = ""
+    colour: str = ""
+    summary: str = ""
+
+
 class TyreProduct(BaseModel):
     id: str
     name: str = ""

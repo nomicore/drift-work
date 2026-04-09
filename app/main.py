@@ -1,15 +1,17 @@
+import json
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException
+from openai import AsyncOpenAI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.config import settings
-from app.models import ChatRequest, ChatResponse
+from app.models import ChatRequest, ChatResponse, VehicleImageRequest, VehicleAnalysisResponse
 from app.agent.graph import workflow
 from app.search.faiss_store import tyre_store
 
@@ -190,6 +192,61 @@ async def chat(request: ChatRequest) -> ChatResponse:
         response=response_text,
         is_final_answer=True,
         recommended_product_ids=recommended_ids,
+    )
+
+
+@app.post("/analyze-vehicle", response_model=VehicleAnalysisResponse)
+async def analyze_vehicle(request: VehicleImageRequest) -> VehicleAnalysisResponse:
+    """Use GPT-4o vision to identify make, model, year, and colour from a vehicle photo."""
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
+
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+    prompt = (
+        "Identify the vehicle in this image. "
+        "Return a JSON object with exactly these fields: "
+        "make (brand name, e.g. Ford), "
+        "model (e.g. Mustang), "
+        "year (best estimate as a 4-digit string, e.g. '2021'), "
+        "colour (choose the closest from: Black, White, Silver, Grey, Blue, Red, Green, Orange, Yellow, Bronze), "
+        "summary (one short sentence, e.g. 'Detected a 2021 Ford Mustang in Red'). "
+        "Use an empty string for any field you are not confident about."
+    )
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{request.media_type};base64,{request.image_base64}",
+                                "detail": "low",
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=200,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content or "{}"
+        data = json.loads(raw)
+    except Exception as e:
+        logger.exception("Vehicle image analysis failed")
+        raise HTTPException(status_code=500, detail=f"Analysis error: {e}") from e
+
+    return VehicleAnalysisResponse(
+        make=data.get("make", ""),
+        model=data.get("model", ""),
+        year=str(data.get("year", "")),
+        colour=data.get("colour", ""),
+        summary=data.get("summary", ""),
     )
 
 
