@@ -258,6 +258,32 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
+            # If we have a wheel image URL, download it and re-upload to fal.ai storage
+            # so fal.ai can use it as a reference (catalogue URLs aren't publicly accessible)
+            if request.wheel_image_url:
+                try:
+                    img_resp = await client.get(
+                        request.wheel_image_url,
+                        headers={"Referer": "https://driftworks.com/"},
+                        follow_redirects=True,
+                        timeout=20.0,
+                    )
+                    if img_resp.status_code == 200:
+                        content_type = img_resp.headers.get("content-type", "image/jpeg").split(";")[0]
+                        ext = "jpg" if "jpeg" in content_type else content_type.split("/")[-1]
+                        upload_resp = await client.post(
+                            "https://fal.run/fal-ai/storage/upload",
+                            headers={"Authorization": f"Key {settings.fal_key}"},
+                            files={"file": (f"wheel.{ext}", img_resp.content, content_type)},
+                        )
+                        if upload_resp.status_code == 200:
+                            fal_image_url = upload_resp.json().get("url") or upload_resp.json().get("file_url")
+                            if fal_image_url:
+                                payload["image_url"] = fal_image_url
+                                payload["image_prompt_strength"] = 0.12
+                except Exception:
+                    logger.warning("Could not upload wheel reference image — proceeding without it")
+
             resp = await client.post(
                 "https://fal.run/fal-ai/flux-pro/v1.1-ultra",
                 headers={"Authorization": f"Key {settings.fal_key}"},
