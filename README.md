@@ -85,6 +85,9 @@ cp .env_example .env
 | `MAX_COLLECTING_TURNS` | Max requirement-collection turns before auto-searching. | `3` |
 | `TOP_K_SEARCH` | Number of candidates retrieved per sub-query. | `10` |
 | `TOP_K_RERANK` | Number of products kept after re-ranking. | `5` |
+| `FAL_KEY` | fal.ai API key for the "Fit it on my ride" AI image generation feature. Get one at [fal.ai](https://fal.ai). | — |
+| `PASSPHRASE` | **Required for access.** Secret passphrase users must enter to unlock the demo. Set to any string. | — |
+| `SESSION_DAYS` | How many days the session cookie stays valid after a successful login. | `7` |
 
 ### 3. Start the backend
 

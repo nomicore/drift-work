@@ -1,10 +1,13 @@
+import hmac
 import json
 import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Cookie, FastAPI, HTTPException, Response
 from openai import AsyncOpenAI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +17,7 @@ from app.config import settings
 import httpx
 from app.models import (
     ChatRequest, ChatResponse,
+    LoginRequest,
     VehicleImageRequest, VehicleAnalysisResponse,
     VisualizeWheelRequest, VisualizeWheelResponse,
 )
@@ -24,6 +28,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 sessions: dict[str, dict] = {}
+auth_tokens: dict[str, datetime] = {}  # token → expiry
+
+AUTH_COOKIE = "dw_session"
+
+
+def _issue_token() -> str:
+    return secrets.token_hex(32)
+
+
+def _token_valid(token: str | None) -> bool:
+    if not token:
+        return False
+    expiry = auth_tokens.get(token)
+    if not expiry:
+        return False
+    if datetime.now(timezone.utc) > expiry:
+        auth_tokens.pop(token, None)
+        return False
+    return True
 
 
 @asynccontextmanager
@@ -384,6 +407,33 @@ async def reset_session(session_id: str) -> dict[str, str]:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/auth/login")
+async def auth_login(request: LoginRequest, response: Response) -> dict[str, str]:
+    """Validate passphrase and issue a session cookie."""
+    if not settings.passphrase:
+        raise HTTPException(status_code=500, detail="Passphrase not configured")
+    if not hmac.compare_digest(request.passphrase, settings.passphrase):
+        raise HTTPException(status_code=401, detail="Incorrect passphrase")
+    token = _issue_token()
+    expiry = datetime.now(timezone.utc) + timedelta(days=settings.session_days)
+    auth_tokens[token] = expiry
+    response.set_cookie(
+        key=AUTH_COOKIE,
+        value=token,
+        max_age=settings.session_days * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=False,  # set to True when serving over HTTPS
+    )
+    return {"status": "ok"}
+
+
+@app.get("/auth/check")
+async def auth_check(dw_session: str | None = Cookie(default=None)) -> dict[str, bool]:
+    """Return whether the current session cookie is valid."""
+    return {"authenticated": _token_valid(dw_session)}
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"

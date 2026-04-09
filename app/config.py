@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     openai_api_key: str = ""
     fal_key: str = ""
+    passphrase: str = ""
+    session_days: int = 7
     openai_model: str = "gpt-4.1"
     openai_fast_model: str = "gpt-4.1-mini"
     openai_planning_model: str = "gpt-5.4"

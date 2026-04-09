@@ -5,20 +5,23 @@ import ChatPanel from './components/ChatPanel'
 import ProductListing from './pages/ProductListing'
 import ProductDetail from './pages/ProductDetail'
 import { StoreProvider } from './context/StoreContext'
+import AuthGate from './components/AuthGate'
 
 function App() {
   return (
-    <StoreProvider>
-      <div className="app">
-        <Header />
-        <Routes>
-          <Route path="/" element={<ProductListing />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-        </Routes>
-        <Footer />
-        <ChatPanel />
-      </div>
-    </StoreProvider>
+    <AuthGate>
+      <StoreProvider>
+        <div className="app">
+          <Header />
+          <Routes>
+            <Route path="/" element={<ProductListing />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+          </Routes>
+          <Footer />
+          <ChatPanel />
+        </div>
+      </StoreProvider>
+    </AuthGate>
   )
 }
 

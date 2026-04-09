@@ -42,6 +42,10 @@ class ChatResponse(BaseModel):
     recommended_product_ids: list[str] = Field(default_factory=list)
 
 
+class LoginRequest(BaseModel):
+    passphrase: str
+
+
 class VisualizeWheelRequest(BaseModel):
     vehicle_make: str
     vehicle_model: str

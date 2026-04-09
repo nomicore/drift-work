@@ -10,6 +10,7 @@ export default defineConfig({
       '/health': 'http://localhost:8000',
       '/analyze-vehicle': 'http://localhost:8000',
       '/visualize-wheel': 'http://localhost:8000',
+      '/auth': 'http://localhost:8000',
     },
   },
 })
