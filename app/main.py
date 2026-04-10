@@ -259,33 +259,33 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
         request.wheel_colour and f"in {request.wheel_colour}",
     ]))
 
-    prompt = (
-        f"Clean professional automotive product photograph of a completely stock, unmodified "
-        f"{request.vehicle_year} {request.vehicle_make} {request.vehicle_model}{colour_clause}, "
-        f"fitted with {wheel_spec} alloy wheels. "
-        "Camera angle: front three-quarter view from the driver's side, slightly low angle so all four wheels are clearly visible, "
-        "identical to a standard dealership or press photo. "
-        f"Setting: {scene}. "
-        "The car is factory-standard with no lift kit, no body kit, no custom bumpers, no roof rack, no modifications whatsoever. "
-        "Natural soft daylight, no dramatic lens flare, no motion blur, no dust clouds, no action pose. "
-        "The vehicle is stationary. Sharp focus, realistic textures, 4K quality."
+    # Kontext prompt: an editing instruction starting from the wheel reference image
+    kontext_prompt = (
+        f"Place these exact alloy wheels — preserving every spoke, groove, finish, and "
+        f"surface detail of the wheel shown — onto a completely stock, unmodified "
+        f"{request.vehicle_year} {request.vehicle_make} {request.vehicle_model}{colour_clause}. "
+        f"Show the full car from a front three-quarter angle from the driver's side, "
+        f"slightly low so all four wheels are clearly visible, {scene}. "
+        "The car is factory-standard with no lift kit, body kit, or modifications. "
+        "Photorealistic, natural soft daylight, sharp focus, 4K quality."
     )
 
-    payload: dict = {
-        "prompt": prompt,
-        "num_images": 1,
-        "image_size": "square_hd",
-        "sync_mode": True,
-        "enable_safety_checker": False,
-    }
+    # Fallback prompt used when no wheel image is available (text-only generation)
+    fallback_prompt = (
+        f"Clean professional automotive photograph of a completely stock, unmodified "
+        f"{request.vehicle_year} {request.vehicle_make} {request.vehicle_model}{colour_clause}, "
+        f"fitted with {wheel_spec} alloy wheels. "
+        "Camera angle: front three-quarter view from the driver's side, slightly low angle. "
+        f"Setting: {scene}. Factory-standard, no modifications. "
+        "Natural soft daylight, sharp focus, 4K quality."
+    )
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            # If we have a wheel image URL, download it and re-upload to fal.ai storage
-            # so fal.ai can use it as a reference (catalogue URLs aren't publicly accessible).
-            # Retry up to 3 times; fall back to text-only generation if all attempts fail.
+            # Try to upload the wheel reference image to fal.ai storage so Kontext
+            # can use it as the base image for editing. Retry up to 3 times.
+            fal_image_url = None
             if request.wheel_image_url:
-                fal_image_url = None
                 for attempt in range(1, 4):
                     try:
                         img_resp = await client.get(
@@ -304,27 +304,48 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
                             files={"file": (f"wheel.{ext}", img_resp.content, content_type)},
                         )
                         if upload_resp.status_code != 200:
-                            raise ValueError(f"fal.ai storage upload returned HTTP {upload_resp.status_code}: {upload_resp.text}")
+                            raise ValueError(
+                                f"fal.ai storage upload returned HTTP {upload_resp.status_code}: {upload_resp.text}"
+                            )
                         fal_image_url = upload_resp.json().get("url") or upload_resp.json().get("file_url")
                         if not fal_image_url:
                             raise ValueError("fal.ai storage upload succeeded but returned no URL")
                         break  # success
                     except Exception as exc:
-                        logger.warning(
-                            "Wheel image upload attempt %d/3 failed: %s", attempt, exc
-                        )
-                if fal_image_url:
-                    payload["image_url"] = fal_image_url
-                    payload["image_prompt_strength"] = 0.12
-                else:
+                        logger.warning("Wheel image upload attempt %d/3 failed: %s", attempt, exc)
+
+                if not fal_image_url:
                     logger.warning(
                         "All 3 wheel image upload attempts failed for URL %s — "
                         "falling back to text-only generation.",
                         request.wheel_image_url,
                     )
 
+            # Route to Kontext (image-guided) when we have the wheel photo,
+            # or fall back to flux-pro/v1.1-ultra text-only when we don't.
+            if fal_image_url:
+                endpoint = "https://fal.run/fal-ai/flux-pro/kontext"
+                payload: dict = {
+                    "prompt": kontext_prompt,
+                    "image_url": fal_image_url,
+                    "num_images": 1,
+                    "output_format": "jpeg",
+                    "guidance_scale": 3.5,
+                    "num_inference_steps": 28,
+                    "sync_mode": True,
+                }
+            else:
+                endpoint = "https://fal.run/fal-ai/flux-pro/v1.1-ultra"
+                payload = {
+                    "prompt": fallback_prompt,
+                    "num_images": 1,
+                    "image_size": "square_hd",
+                    "sync_mode": True,
+                    "enable_safety_checker": False,
+                }
+
             resp = await client.post(
-                "https://fal.run/fal-ai/flux-pro/v1.1-ultra",
+                endpoint,
                 headers={"Authorization": f"Key {settings.fal_key}"},
                 json=payload,
             )
