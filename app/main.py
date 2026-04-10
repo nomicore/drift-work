@@ -259,15 +259,25 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
         request.wheel_colour and f"in {request.wheel_colour}",
     ]))
 
-    # Kontext prompt: an editing instruction starting from the wheel reference image
+    # Kontext prompt: an editing instruction starting from the wheel reference image.
+    # Explicitly decouple wheel colour from car body colour.
+    car_colour_instruction = (
+        f"The car body paint must be exactly {request.vehicle_colour}, not the colour of the wheel."
+        if request.vehicle_colour
+        else "Use the factory default body colour for this vehicle."
+    )
     kontext_prompt = (
-        f"Place these exact alloy wheels — preserving every spoke, groove, finish, and "
-        f"surface detail of the wheel shown — onto a completely stock, unmodified "
-        f"{request.vehicle_year} {request.vehicle_make} {request.vehicle_model}{colour_clause}. "
-        f"Show the full car from a front three-quarter angle from the driver's side, "
-        f"slightly low so all four wheels are clearly visible, {scene}. "
-        "The car is factory-standard with no lift kit, body kit, or modifications. "
-        "Photorealistic, natural soft daylight, sharp focus, 4K quality."
+        f"Using the alloy wheel shown in this image as the reference, generate a photorealistic "
+        f"image of a completely stock {request.vehicle_year} {request.vehicle_make} {request.vehicle_model} "
+        f"fitted with these exact wheels — reproducing every spoke shape, groove, cutout pattern, "
+        f"and surface finish of the reference wheel precisely. "
+        f"IMPORTANT: {car_colour_instruction} "
+        "Do NOT apply the wheel's colour or finish to the car body. "
+        f"The car body colour comes from the text instructions only. "
+        f"Show the full car from a front three-quarter angle, driver's side, slightly low angle "
+        f"so all four wheels are clearly visible. Setting: {scene}. "
+        "Completely factory-standard vehicle, no modifications. "
+        "Photorealistic, natural daylight, sharp focus, 4K quality."
     )
 
     # Fallback prompt used when no wheel image is available (text-only generation)
@@ -282,8 +292,9 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            # Try to upload the wheel reference image to fal.ai storage so Kontext
-            # can use it as the base image for editing. Retry up to 3 times.
+            # Download the wheel image and encode it as a base64 data URI so it can
+            # be passed directly to Kontext without needing a public upload host.
+            # Retry up to 3 times; fall back to text-only if all attempts fail.
             fal_image_url = None
             if request.wheel_image_url:
                 for attempt in range(1, 4):
@@ -297,26 +308,16 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
                         if img_resp.status_code != 200:
                             raise ValueError(f"Image fetch returned HTTP {img_resp.status_code}")
                         content_type = img_resp.headers.get("content-type", "image/jpeg").split(";")[0]
-                        ext = "jpg" if "jpeg" in content_type else content_type.split("/")[-1]
-                        upload_resp = await client.post(
-                            "https://fal.run/fal-ai/storage/upload",
-                            headers={"Authorization": f"Key {settings.fal_key}"},
-                            files={"file": (f"wheel.{ext}", img_resp.content, content_type)},
-                        )
-                        if upload_resp.status_code != 200:
-                            raise ValueError(
-                                f"fal.ai storage upload returned HTTP {upload_resp.status_code}: {upload_resp.text}"
-                            )
-                        fal_image_url = upload_resp.json().get("url") or upload_resp.json().get("file_url")
-                        if not fal_image_url:
-                            raise ValueError("fal.ai storage upload succeeded but returned no URL")
+                        import base64 as _b64
+                        b64 = _b64.b64encode(img_resp.content).decode()
+                        fal_image_url = f"data:{content_type};base64,{b64}"
                         break  # success
                     except Exception as exc:
-                        logger.warning("Wheel image upload attempt %d/3 failed: %s", attempt, exc)
+                        logger.warning("Wheel image fetch attempt %d/3 failed: %s", attempt, exc)
 
                 if not fal_image_url:
                     logger.warning(
-                        "All 3 wheel image upload attempts failed for URL %s — "
+                        "All 3 wheel image fetch attempts failed for URL %s — "
                         "falling back to text-only generation.",
                         request.wheel_image_url,
                     )
@@ -332,6 +333,7 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
                     "output_format": "jpeg",
                     "guidance_scale": 3.5,
                     "num_inference_steps": 28,
+                    "image_size": "landscape_16_9",
                     "sync_mode": True,
                 }
             else:
@@ -339,7 +341,7 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
                 payload = {
                     "prompt": fallback_prompt,
                     "num_images": 1,
-                    "image_size": "square_hd",
+                    "image_size": "landscape_16_9",
                     "sync_mode": True,
                     "enable_safety_checker": False,
                 }
@@ -362,9 +364,10 @@ async def visualize_wheel(request: VisualizeWheelRequest) -> VisualizeWheelRespo
     if not images:
         raise HTTPException(status_code=502, detail="fal.ai returned no images")
 
+    prompt_used = payload.get("prompt", "")
     return VisualizeWheelResponse(
         image_url=images[0]["url"],
-        prompt_used=prompt,
+        prompt_used=prompt_used,
     )
 
 
